@@ -20,6 +20,9 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(8080);
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite://data/revision-loop.db?mode=rwc".into());
+    if database_url.starts_with("sqlite://data/") {
+        std::fs::create_dir_all("data")?;
+    }
     let dist_dir = PathBuf::from(std::env::var("DIST_DIR").unwrap_or_else(|_| "dist".into()));
     let pool = open_database(&database_url).await?;
     let state = AppState { pool };

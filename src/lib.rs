@@ -51,6 +51,8 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .route("/loops/{id}/review", patch(review_loop))
         .route("/student/{token}", get(student_loop))
         .route("/student/{token}/revision", post(submit_revision))
+        .route("/packs", post(create_pack))
+        .route("/packs/{token}/import", post(import_pack))
         .route("/export", get(export_workspace))
         .route("/workspace", delete(delete_workspace))
         .layer(DefaultBodyLimit::max(64 * 1024));
@@ -447,7 +449,7 @@ async fn submit_revision(
     let before = clean_required("Before excerpt", &input.before_excerpt, 1, 4000)?;
     let after = clean_required("After excerpt", &input.after_excerpt, 1, 4000)?;
     let explanation = clean_required("Revision explanation", &input.explanation, 8, 2000)?;
-    let row = sqlx::query("SELECT id, status, created_at, retention_days FROM feedback_loops WHERE token = ? AND deleted_at IS NULL").bind(&token).fetch_optional(&state.pool).await?.ok_or_else(|| ApiError::not_found("This revision link was not found or has been deleted."))?;
+    let row = sqlx::query("SELECT id, status, created_at, retention_days FROM feedback_loops WHERE token = ? AND deleted_at IS NULL AND datetime(created_at, '+' || retention_days || ' days') >= datetime('now')").bind(&token).fetch_optional(&state.pool).await?.ok_or_else(|| ApiError::not_found("This revision link was not found, has expired, or was deleted."))?;
     if row.get::<String, _>("status") == "reviewed" {
         return Err(ApiError::conflict(
             "This revision has already been reviewed. Ask your teacher to reopen it.",
@@ -510,6 +512,97 @@ async fn export_workspace(
         .into_response())
 }
 
+#[derive(Debug, Deserialize)]
+struct PackInput {
+    rubric_ids: Vec<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PackRubric {
+    code: String,
+    title: String,
+    guidance: String,
+    next_step: String,
+}
+
+async fn create_pack(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<PackInput>,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    let key = workspace_key(&headers)?;
+    if input.rubric_ids.is_empty() || input.rubric_ids.len() > 100 {
+        return Err(ApiError::validation(
+            "Choose between 1 and 100 rubric codes for a team pack.",
+        ));
+    }
+    let placeholders = std::iter::repeat("?")
+        .take(input.rubric_ids.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql = format!("SELECT code, title, guidance, next_step FROM rubric_codes WHERE workspace_key = ? AND id IN ({placeholders}) ORDER BY code");
+    let mut query = sqlx::query(&sql).bind(&key);
+    for id in &input.rubric_ids {
+        query = query.bind(id);
+    }
+    let rows = query.fetch_all(&state.pool).await?;
+    if rows.len() != input.rubric_ids.len() {
+        return Err(ApiError::validation(
+            "One or more rubric codes no longer exist.",
+        ));
+    }
+    let pack: Vec<PackRubric> = rows
+        .into_iter()
+        .map(|row| PackRubric {
+            code: row.get("code"),
+            title: row.get("title"),
+            guidance: row.get("guidance"),
+            next_step: row.get("next_step"),
+        })
+        .collect();
+    let token = Uuid::new_v4().simple().to_string();
+    sqlx::query("INSERT INTO rubric_packs (token, workspace_key, rubric_json) VALUES (?, ?, ?)")
+        .bind(&token)
+        .bind(key)
+        .bind(serde_json::to_string(&pack).map_err(|_| ApiError::internal())?)
+        .execute(&state.pool)
+        .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "token": token })),
+    ))
+}
+
+async fn import_pack(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let key = workspace_key(&headers)?;
+    validate_token(&token)?;
+    let raw: String = sqlx::query_scalar("SELECT rubric_json FROM rubric_packs WHERE token = ? AND datetime(created_at, '+30 days') >= datetime('now')")
+        .bind(token)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| ApiError::not_found("This team pack was not found or has expired."))?;
+    let pack: Vec<PackRubric> = serde_json::from_str(&raw).map_err(|_| ApiError::internal())?;
+    let mut imported = 0_u64;
+    let mut tx = state.pool.begin().await?;
+    for rubric in pack {
+        imported += sqlx::query("INSERT OR IGNORE INTO rubric_codes (workspace_key, code, title, guidance, next_step) VALUES (?, ?, ?, ?, ?)")
+            .bind(&key)
+            .bind(rubric.code)
+            .bind(rubric.title)
+            .bind(rubric.guidance)
+            .bind(rubric.next_step)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+    }
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "imported": imported })))
+}
+
 async fn delete_workspace(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -531,6 +624,10 @@ async fn delete_workspace(
         .execute(&mut *tx)
         .await?;
     sqlx::query("DELETE FROM rubric_codes WHERE workspace_key = ?")
+        .bind(&key)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM rubric_packs WHERE workspace_key = ?")
         .bind(&key)
         .execute(&mut *tx)
         .await?;

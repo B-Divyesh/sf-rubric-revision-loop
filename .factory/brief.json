@@ -1,0 +1,12 @@
+{
+  "slug": "rubric-revision-loop",
+  "title": "Rubric Revision Loop",
+  "territory": "utilities",
+  "user": "Teachers with a large writing-feedback load who need to give reusable, criterion-specific feedback and make the student's next revision visible without outsourcing judgment to an LLM.",
+  "smallest_useful_product": "Teacher-created rubric-code library, pasteable short feedback links, student revision checklist with before/after excerpt, and teacher review queue.",
+  "success_measure": "A teacher reuses rubric codes for 50%+ of comments while 60%+ of students submit at least one linked revision explanation.",
+  "artifact_class": "web-with-backend",
+  "monetization": "freemium — a free single-class workflow validates utility; small paid teams need shared rubrics and retention controls.",
+  "constraints": "Student data minimization, FERPA/GDPR-aware deletion, no model training on student writing, accessible link-only student view.",
+  "state": "BUILT"
+}

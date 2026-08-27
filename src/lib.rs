@@ -55,10 +55,11 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .route("/packs/{token}/import", post(import_pack))
         .route("/export", get(export_workspace))
         .route("/workspace", delete(delete_workspace))
+        .fallback(api_not_found)
         .layer(DefaultBodyLimit::max(64 * 1024));
     let static_files = ServeDir::new(&config.dist_dir)
         .append_index_html_on_directories(true)
-        .not_found_service(ServeFile::new(config.dist_dir.join("index.html")));
+        .fallback(ServeFile::new(config.dist_dir.join("index.html")));
     Router::new()
         .nest("/api", api)
         .fallback_service(static_files)
@@ -83,6 +84,10 @@ async fn health() -> Json<Health<'static>> {
         status: "ok",
         build_sha: option_env!("BUILD_SHA").unwrap_or("dev"),
     })
+}
+
+async fn api_not_found() -> ApiError {
+    ApiError::not_found("API route not found.")
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -228,8 +233,7 @@ async fn create_loop(
         ));
     }
     let mut tx = state.pool.begin().await?;
-    let placeholders = std::iter::repeat("?")
-        .take(input.rubric_ids.len())
+    let placeholders = std::iter::repeat_n("?", input.rubric_ids.len())
         .collect::<Vec<_>>()
         .join(",");
     let check_sql = format!("SELECT COUNT(*) AS count FROM rubric_codes WHERE workspace_key = ? AND id IN ({placeholders})");
@@ -536,8 +540,7 @@ async fn create_pack(
             "Choose between 1 and 100 rubric codes for a team pack.",
         ));
     }
-    let placeholders = std::iter::repeat("?")
-        .take(input.rubric_ids.len())
+    let placeholders = std::iter::repeat_n("?", input.rubric_ids.len())
         .collect::<Vec<_>>()
         .join(",");
     let sql = format!("SELECT code, title, guidance, next_step FROM rubric_codes WHERE workspace_key = ? AND id IN ({placeholders}) ORDER BY code");
@@ -837,5 +840,37 @@ mod tests {
             .unwrap();
         let (status, _) = json_response(app, request).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn shares_rubric_pack_without_exposing_source_workspace() {
+        let app = test_app().await;
+        let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"ORG-2","title":"Organize reasons","guidance":"Arrange reasons so each one builds on the last.","next_step":"Move one sentence and explain why the new order is clearer."}))).await;
+        let (_, pack) = json_response(
+            app.clone(),
+            api(
+                "POST",
+                "/api/packs",
+                serde_json::json!({"rubric_ids":[rubric["id"]]}),
+            ),
+        )
+        .await;
+        let token = pack["token"].as_str().unwrap();
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/api/packs/{token}/import"))
+            .header("x-workspace-key", "second_workspace_key_1234567890_ab")
+            .body(Body::empty())
+            .unwrap();
+        let (status, imported) = json_response(app.clone(), request).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(imported["imported"], 1);
+        let request = Request::builder()
+            .uri("/api/rubrics")
+            .header("x-workspace-key", "second_workspace_key_1234567890_ab")
+            .body(Body::empty())
+            .unwrap();
+        let (_, library) = json_response(app, request).await;
+        assert_eq!(library["items"][0]["code"], "ORG-2");
     }
 }

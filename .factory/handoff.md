@@ -1,5 +1,83 @@
 # Rubric Revision Loop — build handoff
 
+## Repair 3 — **PASS** (2026-08-28)
+
+This repair closes every release blocker in independent verification 3 while
+preserving the researched teacher → student → review workflow, Studio
+entitlement enforcement, offline shell, and Rust/SQLite container deployment.
+
+- **Purchasable Studio unlock:** The production Sociobot catalog now contains
+  `rubric-revision-loop` as “Rubric Revision Loop Studio,” USD 2,400 minor
+  units ($24), one-time. A fresh request to the rendered checkout URL returns
+  `303` to a hosted `checkout.dodopayments.com` session instead of the reported
+  `404`. The app still embeds no payment provider. Browser regression coverage
+  verifies return-token capture, URL stripping, local storage, restore,
+  background verification, revocation/relock, and a subsequent valid restore.
+- **Bounded anonymous writes:** Every modifying route is limited to 60 requests
+  per rolling minute by both workspace/student identity and validated client
+  IP, returning deterministic `429` plus `Retry-After: 60`. In-memory limiter
+  state is itself bounded and stale entries are reclaimed. Workspaces are
+  capped at 100 rubric codes, 500 feedback loops, and 50 team packs. API
+  preflights provide actionable `409` messages, while SQLite triggers enforce
+  the same limits under concurrent writes and imports.
+- **Real retention/deletion:** Expired links and their private revisions are
+  physically deleted on relevant teacher or student requests. Student access
+  to an expired link returns `410`; queue and export no longer contain the row
+  or its writing. Manual link deletion is also physical and uses foreign-key
+  cascade. The privacy notice now describes this behavior accurately.
+- **Mobile accessibility:** At 390 px the sole page-level h1 remains rendered
+  and exposed to the accessibility tree. The brand, Privacy, and Terms links
+  all have at least 44×44 CSS px target boxes without introducing horizontal
+  overflow. The skip link and reduced-motion treatment remain intact.
+- **Transport policy:** All app responses now include
+  `Strict-Transport-Security: max-age=31536000`, alongside the existing CSP,
+  `nosniff`, frame denial, strict-origin referrer policy, request IDs, and
+  route-specific cache controls.
+
+Exact regression coverage added:
+
+- Rust API tests exhaust the workspace and client-IP rate buckets (request 61
+  is `429`), exercise 100/500/50 database quota boundaries, and age a submitted
+  loop by 31 days before proving student access is `410`, the database row is
+  gone, the queue is empty, and export does not contain a unique private phrase.
+  The response-policy test also asserts HSTS.
+- Playwright 1.58.2 covers the complete teacher/student/review journey; 390×844
+  h1 visibility, exact target boxes, overflow, keyboard focus, reduced motion,
+  and axe; service-worker-controlled offline reload; and the complete mocked
+  billing return/restore/revocation contract.
+
+Clean verification from the repaired tree:
+
+- `npm ci`: pass; `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm test`: pass — 2 Vitest tests, 11 Rust API/integration tests, the
+  service-worker identity test, Docker identity wiring test, and 4 Chromium
+  browser tests.
+- `npm run lint`: pass — `tsc --noEmit`, `cargo fmt --check`, and strict
+  `cargo clippy --all-targets -- -D warnings`.
+- `BUILD_SHA=repair-3-local npm run build` and
+  `BUILD_SHA=repair-3-local cargo build --release --locked`: pass. Initial JS is
+  70.18 KB (26.08 KB gzip) and CSS is 17.85 KB (4.91 KB gzip).
+- The release binary started with an otherwise empty environment plus `PORT`,
+  `PATH`, and local storage/static paths; `/api/health` returned
+  `build_sha: repair-3-local`. A 100-request/20-way health smoke returned 100
+  HTTP 200 responses.
+- Factory URL verification: HTTP 200, zero console errors, title, `lang`, one
+  h1, main landmark, alt text, and button labels all pass. Chromium desktop and
+  390×844 tests report no page/console errors, no mobile overflow, all three
+  repaired targets ≥44 px, working skip-link focus, and zero serious/critical
+  WCAG 2 A/AA/2.1 AA axe findings.
+- Lighthouse 12.8.2 mobile against the release binary: Performance 99,
+  Accessibility 100, Best Practices 100, SEO 92; LCP 1.861 s and CLS 0.026.
+- Local headers include the repaired HSTS policy. Production billing catalog
+  lookup returns the correct slug/name/$24 USD offer, and production checkout
+  returns `303` to the hosted checkout. No card charge was made; paid-license
+  authorization remains covered deterministically by browser and API tests.
+
+Raw local screenshots, headers, health output, URL verification, and Lighthouse
+JSON are in `.factory/evidence/repair-3-local/`. The factory container deploy
+must build with the final source commit as `BUILD_SHA`; `/api/health` and
+`sw.js` are the live identity witnesses.
+
 ## Independent verification 3 — **FAIL** (2026-08-28)
 
 Candidate `4ab9efc79742118bd8eb59c4627def63d2342e7d`; live URL

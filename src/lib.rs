@@ -192,6 +192,7 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(config.dist_dir.join("index.html")));
     Router::new()
+        .route("/health", get(health))
         .nest("/api", api)
         .fallback_service(static_files)
         .with_state(state)
@@ -268,7 +269,7 @@ async fn enforce_write_rate(
 async fn cache_control(request: axum::extract::Request, next: Next) -> Response {
     let path = request.uri().path().to_owned();
     let mut response = next.run(request).await;
-    let value = if path.starts_with("/api/") {
+    let value = if path == "/health" || path.starts_with("/api/") {
         "no-store"
     } else if path.starts_with("/assets/") {
         "public, max-age=31536000, immutable"
@@ -1695,6 +1696,7 @@ mod tests {
         );
 
         for (uri, expected) in [
+            ("/health", "no-store"),
             ("/api/health", "no-store"),
             (
                 "/assets/app-abc123.js",

@@ -36,6 +36,9 @@ Repair verification completed locally:
 - Chromium 1.58.2 desktop/390px check: full semantic scan has 0 WCAG 2 A/AA
   violations, skip link focuses `main`, mobile document width is exactly 390,
   and no console errors occurred.
+- Chromium functional flow: a student completed both checklist items, submitted
+  before/after evidence and an explanation, the teacher queue became
+  `submitted`, and a review made the student slip read-only.
 - Offline browser check: service worker reached `ready`; a controlled offline
   reload returned the app with one `<h1>`.
 - Server response-policy regression test covers API `no-store`, immutable

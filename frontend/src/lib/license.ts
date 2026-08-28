@@ -47,6 +47,11 @@ export function clearLicense(): void {
   localStorage.removeItem(verdictKey());
 }
 
+/** The server independently verifies this token before any Studio write. */
+export function activeLicense(): string | null {
+  return localStorage.getItem(licenseKey())?.trim() || null;
+}
+
 function readVerdict(): Verdict | null {
   try { return JSON.parse(localStorage.getItem(verdictKey()) || 'null') as Verdict | null; }
   catch { return null; }

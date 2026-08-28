@@ -25,7 +25,8 @@ writing to an LLM.
 - JSON export and permanent workspace deletion are available to everyone.
 - Studio is a $24 one-time unlock for shared rubric-pack links and 90-day or
   one-year retention. Licenses are bought and verified by Sociobot; no payment
-  provider is embedded here.
+  provider is embedded here. The API independently verifies the license before
+  it creates a paid-retention link or creates/imports a team pack.
 
 ## Local development
 
@@ -55,6 +56,8 @@ Environment variables:
   `sqlite://data/revision-loop.db?mode=rwc`
 - `DIST_DIR` — built frontend path, default `dist`
 - `VITE_BILLING_BASE_URL` — optional billing API override for staging builds
+- `BILLING_BASE_URL` — optional server-side billing API override for staging;
+  defaults to `https://api.sociobot.in`
 - `VITE_PRODUCT_SLUG` is intentionally not needed: the product slug is read
   from the server-owned HTML document metadata.
 
@@ -66,9 +69,11 @@ docker run --rm -p 8080:8080 -v rrl-data:/app/data rubric-revision-loop
 ```
 
 The multi-stage image runs as a non-root user and serves the Vite build and
-Axum API together on `PORT`. Mount `/app/data` as a persistent volume. Pass
-the commit SHA at image build time; `/api/health` reports it for release
-identity verification.
+Axum API together on `PORT`. Mount `/app/data` as a persistent volume. Always
+pass the source commit SHA at image build time; `/api/health` and the
+service-worker cache name report it for release identity verification. The
+safe local fallback is `dev`, so a release must never accept that value as its
+candidate identity.
 
 ## Privacy and design
 

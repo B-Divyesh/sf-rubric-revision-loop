@@ -11,7 +11,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
 };
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     services::{ServeDir, ServeFile},
@@ -23,6 +23,61 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
+    pub studio: StudioVerifier,
+}
+
+/// Premium operations are authorized by Sociobot at the API boundary.  The
+/// browser's cached verdict is only a UI optimization and is never trusted for
+/// writes that create a paid entitlement.
+#[derive(Clone)]
+pub enum StudioVerifier {
+    Billing {
+        client: reqwest::Client,
+        base_url: String,
+    },
+    Static {
+        valid_license: String,
+    },
+}
+
+impl StudioVerifier {
+    pub fn billing(base_url: String) -> Self {
+        Self::Billing {
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(5))
+                .build()
+                .expect("build billing HTTP client"),
+            base_url: base_url.trim_end_matches('/').to_string(),
+        }
+    }
+
+    async fn verify(&self, license: &str) -> Result<bool, ()> {
+        match self {
+            Self::Static { valid_license } => Ok(license == valid_license),
+            Self::Billing { client, base_url } => {
+                let response = client
+                    .get(format!(
+                        "{base_url}/api/v1/products/rubric-revision-loop/verify"
+                    ))
+                    .query(&[("license", license)])
+                    .send()
+                    .await
+                    .map_err(|_| ())?;
+                if !response.status().is_success() {
+                    return Err(());
+                }
+                #[derive(Deserialize)]
+                struct LicenseVerdict {
+                    valid: bool,
+                }
+                response
+                    .json::<LicenseVerdict>()
+                    .await
+                    .map(|verdict| verdict.valid)
+                    .map_err(|_| ())
+            }
+        }
+    }
 }
 
 pub struct AppConfig {
@@ -279,6 +334,9 @@ async fn create_loop(
         return Err(ApiError::validation(
             "Retention must be between 7 and 365 days.",
         ));
+    }
+    if retention > 30 {
+        require_studio(&state, &headers).await?;
     }
     let mut tx = state.pool.begin().await?;
     let placeholders = std::iter::repeat_n("?", input.rubric_ids.len())
@@ -599,6 +657,7 @@ async fn create_pack(
     Json(input): Json<PackInput>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let key = workspace_key(&headers)?;
+    require_studio(&state, &headers).await?;
     if input.rubric_ids.is_empty() || input.rubric_ids.len() > 100 {
         return Err(ApiError::validation(
             "Choose between 1 and 100 rubric codes for a team pack.",
@@ -646,6 +705,7 @@ async fn import_pack(
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let key = workspace_key(&headers)?;
+    require_studio(&state, &headers).await?;
     validate_token(&token)?;
     let raw: String = sqlx::query_scalar("SELECT rubric_json FROM rubric_packs WHERE token = ? AND datetime(created_at, '+30 days') >= datetime('now')")
         .bind(token)
@@ -717,6 +777,26 @@ fn workspace_key(headers: &HeaderMap) -> Result<String, ApiError> {
         ));
     }
     Ok(key.to_string())
+}
+
+async fn require_studio(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
+    let license = headers
+        .get("x-studio-license")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ApiError::forbidden("A valid Studio license is required for this feature.")
+        })?;
+    match state.studio.verify(license).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(ApiError::forbidden(
+            "This Studio license is not active. Restore or purchase a license to continue.",
+        )),
+        Err(()) => Err(ApiError::service_unavailable(
+            "Studio verification is temporarily unavailable. Try again shortly.",
+        )),
+    }
 }
 
 fn validate_token(token: &str) -> Result<(), ApiError> {
@@ -794,6 +874,18 @@ impl ApiError {
             message: message.into(),
         }
     }
+    fn forbidden(message: &str) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            message: message.into(),
+        }
+    }
+    fn service_unavailable(message: &str) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: message.into(),
+        }
+    }
     fn internal() -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -832,7 +924,12 @@ mod tests {
     async fn test_app() -> Router {
         let pool = open_database("sqlite::memory:").await.unwrap();
         build_app(
-            AppState { pool },
+            AppState {
+                pool,
+                studio: StudioVerifier::Static {
+                    valid_license: "studio-test-license".into(),
+                },
+            },
             AppConfig {
                 dist_dir: PathBuf::from("dist"),
             },
@@ -853,6 +950,17 @@ mod tests {
             .uri(uri)
             .header("content-type", "application/json")
             .header("x-workspace-key", "teacher_workspace_key_1234567890")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    fn studio_api(method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
+        Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .header("x-workspace-key", "teacher_workspace_key_1234567890")
+            .header("x-studio-license", "studio-test-license")
             .body(Body::from(body.to_string()))
             .unwrap()
     }
@@ -912,7 +1020,7 @@ mod tests {
         let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"ORG-2","title":"Organize reasons","guidance":"Arrange reasons so each one builds on the last.","next_step":"Move one sentence and explain why the new order is clearer."}))).await;
         let (_, pack) = json_response(
             app.clone(),
-            api(
+            studio_api(
                 "POST",
                 "/api/packs",
                 serde_json::json!({"rubric_ids":[rubric["id"]]}),
@@ -924,6 +1032,7 @@ mod tests {
             .method("POST")
             .uri(format!("/api/packs/{token}/import"))
             .header("x-workspace-key", "second_workspace_key_1234567890_ab")
+            .header("x-studio-license", "studio-test-license")
             .body(Body::empty())
             .unwrap();
         let (status, imported) = json_response(app.clone(), request).await;
@@ -936,6 +1045,64 @@ mod tests {
             .unwrap();
         let (_, library) = json_response(app, request).await;
         assert_eq!(library["items"][0]["code"], "ORG-2");
+    }
+
+    #[tokio::test]
+    async fn rejects_unlicensed_studio_retention_and_team_pack_writes() {
+        let app = test_app().await;
+        let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"EV-1","title":"Use evidence","guidance":"Connect a quotation to the claim you make.","next_step":"Add one sentence explaining how the quotation proves the claim."}))).await;
+        let rubric_id = rubric["id"].as_i64().unwrap();
+
+        let (status, body) = json_response(
+            app.clone(),
+            api(
+                "POST",
+                "/api/loops",
+                serde_json::json!({"assignment_title":"Paid bypass","rubric_ids":[rubric_id],"retention_days":365}),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            body["error"],
+            "A valid Studio license is required for this feature."
+        );
+
+        let (status, body) = json_response(
+            app.clone(),
+            api(
+                "POST",
+                "/api/packs",
+                serde_json::json!({"rubric_ids":[rubric_id]}),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            body["error"],
+            "A valid Studio license is required for this feature."
+        );
+
+        let (status, _) = json_response(
+            app.clone(),
+            studio_api(
+                "POST",
+                "/api/loops",
+                serde_json::json!({"assignment_title":"Licensed retention","rubric_ids":[rubric_id],"retention_days":365}),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (status, _) = json_response(
+            app,
+            studio_api(
+                "POST",
+                "/api/packs",
+                serde_json::json!({"rubric_ids":[rubric_id]}),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
     }
 
     #[tokio::test]
@@ -1020,7 +1187,12 @@ mod tests {
     async fn deletes_a_rubric_after_cleaning_a_legacy_soft_deleted_link() {
         let pool = open_database("sqlite::memory:").await.unwrap();
         let app = build_app(
-            AppState { pool: pool.clone() },
+            AppState {
+                pool: pool.clone(),
+                studio: StudioVerifier::Static {
+                    valid_license: "studio-test-license".into(),
+                },
+            },
             AppConfig {
                 dist_dir: PathBuf::from("dist"),
             },
@@ -1058,7 +1230,12 @@ mod tests {
         std::fs::write(temp.path().join("sw.js"), "// worker").unwrap();
         let pool = open_database("sqlite::memory:").await.unwrap();
         let app = build_app(
-            AppState { pool },
+            AppState {
+                pool,
+                studio: StudioVerifier::Static {
+                    valid_license: "studio-test-license".into(),
+                },
+            },
             AppConfig {
                 dist_dir: temp.path().to_path_buf(),
             },

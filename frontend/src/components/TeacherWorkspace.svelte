@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, formatDate, getWorkspaceKey, revisionUrl, type FeedbackLoop, type Rubric } from '../lib/api';
-  import { captureLicense, checkoutUrl, clearLicense, saveLicense, verifyLicense, type LicenseState } from '../lib/license';
+  import { activeLicense, captureLicense, checkoutUrl, clearLicense, saveLicense, verifyLicense, type LicenseState } from '../lib/license';
 
   type Tab = 'create' | 'rubrics' | 'queue' | 'settings';
   let tab = $state<Tab>('create');
@@ -44,6 +44,10 @@
   }
 
   function announce(message: string) { notice = message; window.setTimeout(() => { if (notice === message) notice = ''; }, 5000); }
+  function studioHeaders(): HeadersInit {
+    const license = activeLicense();
+    return license ? { 'x-studio-license': license } : {};
+  }
 
   async function addRubric(event: SubmitEvent) {
     event.preventDefault(); busy = true; error = '';
@@ -70,7 +74,8 @@
   async function createLink(event: SubmitEvent) {
     event.preventDefault(); busy = true; error = ''; createdUrl = '';
     try {
-      const created = await api<{ token: string }>('/loops', { method: 'POST', body: JSON.stringify({ assignment_title: assignmentTitle, student_label: studentLabel, teacher_note: teacherNote, rubric_ids: selectedIds, retention_days: licenseState === 'unlocked' ? retentionDays : 30 }) });
+      const isStudioRetention = licenseState === 'unlocked' && retentionDays > 30;
+      const created = await api<{ token: string }>('/loops', { method: 'POST', headers: isStudioRetention ? studioHeaders() : {}, body: JSON.stringify({ assignment_title: assignmentTitle, student_label: studentLabel, teacher_note: teacherNote, rubric_ids: selectedIds, retention_days: licenseState === 'unlocked' ? retentionDays : 30 }) });
       createdUrl = revisionUrl(created.token); assignmentTitle = studentLabel = teacherNote = ''; selectedIds = []; retentionDays = 30;
       announce('Student revision link created.'); await reload();
     } catch (e) { error = (e as Error).message; }
@@ -122,14 +127,14 @@
 
   async function sharePack() {
     if (licenseState !== 'unlocked') return;
-    try { const result = await api<{ token: string }>('/packs', { method: 'POST', body: JSON.stringify({ rubric_ids: rubrics.map(r => r.id) }) }); packUrl = `${location.origin}/?pack=${result.token}`; announce('Team rubric pack link created.'); }
+    try { const result = await api<{ token: string }>('/packs', { method: 'POST', headers: studioHeaders(), body: JSON.stringify({ rubric_ids: rubrics.map(r => r.id) }) }); packUrl = `${location.origin}/?pack=${result.token}`; announce('Team rubric pack link created.'); }
     catch (e) { error = (e as Error).message; }
   }
 
   async function importPack() {
     if (licenseState !== 'unlocked') return;
     const token = packToken.trim(); if (!token) return;
-    try { const result = await api<{ imported: number }>(`/packs/${encodeURIComponent(token)}/import`, { method: 'POST' }); await reload(); announce(`${result.imported} rubric code${result.imported === 1 ? '' : 's'} imported.`); incomingPack = ''; packToken = ''; }
+    try { const result = await api<{ imported: number }>(`/packs/${encodeURIComponent(token)}/import`, { method: 'POST', headers: studioHeaders() }); await reload(); announce(`${result.imported} rubric code${result.imported === 1 ? '' : 's'} imported.`); incomingPack = ''; packToken = ''; }
     catch (e) { error = (e as Error).message; }
   }
 

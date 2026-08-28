@@ -1,4 +1,4 @@
-ARG BUILD_SHA=unidentified
+ARG BUILD_SHA=dev
 
 FROM node:22-alpine AS frontend
 WORKDIR /app

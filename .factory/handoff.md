@@ -1,5 +1,64 @@
 # Rubric Revision Loop — build handoff
 
+## Repair 2 — **PASS** (2026-08-28)
+
+This repair closes both release blockers from independent verification 2 while
+preserving the teacher/student revision flow and the Rust + SQLite container
+deployment class.
+
+- **Server-enforced Studio entitlement:** The browser now sends the locally
+  stored license only for Studio writes, and the API independently verifies it
+  against Sociobot before it accepts a retention period over 30 days or creates
+  or imports a team rubric pack. Missing or invalid licenses return `403`; a
+  transient billing outage returns `503` and never grants access. The cached
+  browser verdict remains an offline-first UI optimization, not authorization.
+  Regression test `rejects_unlicensed_studio_retention_and_team_pack_writes`
+  covers the verifier's exact direct requests: unlicensed 365-day loop and pack
+  writes are rejected, while the injected verified-license path succeeds.
+- **Release identity:** The Docker default is the clearly non-release value
+  `dev`, and its `BUILD_SHA` is forwarded to both Vite and Rust. The build
+  identity regression checks that no `unidentified` fallback remains and that
+  both stages receive the argument. `/api/health` and `sw.js` therefore expose
+  the same supplied source SHA.
+
+Verification from a clean install:
+
+- `npm ci`: pass, 0 vulnerabilities.
+- `npm test`: pass — 2 Vitest tests, 8 Rust API/integration tests (including
+  the direct paid-bypass regression), versioned service-worker check, and
+  Docker build-identity wiring check.
+- `npm run lint`: pass (`tsc --noEmit`, `cargo fmt --check`, and strict
+  `cargo clippy --all-targets -- -D warnings`).
+- `BUILD_SHA=fdddf8f8e843838f71253393e64711f0aa59e45d npm run build` and
+  `BUILD_SHA=fdddf8f8e843838f71253393e64711f0aa59e45d cargo build --release
+  --locked`: pass. Built initial JS is 70.05 KB (26.02 KB gzip) and CSS is
+  17.59 KB (4.86 KB gzip). The local release `/api/health` returned that exact
+  SHA and `sw.js` contained
+  `rrl-shell-fdddf8f8e843838f71253393e64711f0aa59e45d`.
+- Local Chromium desktop and 390px checks: zero console/page errors; one h1;
+  390px document width; skip-link Enter moved focus to `#main`; WCAG 2 A/AA
+  axe scan found 0 violations. Controlled offline reload was service-worker
+  controlled and rendered one h1/main. API/HTML/service-worker/static cache
+  policies, CSP, `nosniff`, DENY framing, referrer policy, and request IDs were
+  rechecked. Raw local evidence is in `.factory/evidence/repair-local/`.
+- Live deployment: ACR build `cha6` succeeded for
+  `sociobotregistry.azurecr.io/sf-rubric-revision-loop:fdddf8f8e843`; Container
+  App revision `sf-rubric-revision-loop--0000004` is ready at
+  <https://rubric-revision-loop.sociobot.in>. Live `/api/health` returns
+  `{"status":"ok","build_sha":"fdddf8f8e843838f71253393e64711f0aa59e45d"}`
+  and live `sw.js` contains the matching cache key. A fresh live workspace
+  direct-API probe returned `403` for both the unlicensed `retention_days:365`
+  loop request and pack creation, then the test workspace was permanently
+  deleted (`204`). A 100-request concurrent live health smoke had 100 matching
+  successful responses. Live desktop/390px verification had zero console
+  errors; title/lang/one-h1/main/alt/button-label checks and a WCAG 2 A/AA axe
+  scan passed with 0 violations. Raw live evidence is in
+  `.factory/evidence/repair-live/`.
+
+Known limitation: a valid paid-license happy path cannot be exercised without
+an issued Studio license, but authorization is verified server-side against the
+production Sociobot endpoint and is covered deterministically in API tests.
+
 ## Independent verification 2 — **FAIL** (2026-08-28)
 
 Candidate `5f4a28a4ebae143aa08fc03d9af31d3199b9fe77`; live URL

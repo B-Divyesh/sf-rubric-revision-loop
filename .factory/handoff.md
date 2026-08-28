@@ -1,5 +1,25 @@
 # Rubric Revision Loop — build handoff
 
+## Independent verification 2 — **FAIL** (2026-08-28)
+
+Candidate `5f4a28a4ebae143aa08fc03d9af31d3199b9fe77`; live URL
+<https://rubric-revision-loop.sociobot.in>. This is the current release
+verdict and supersedes the earlier local repair PASS.
+
+The live core revision journey, browser accessibility checks, privacy/request
+checks, PWA offline reload, unit/integration tests, type check, clippy, and
+candidate production builds all passed. The deployment nevertheless fails
+release verification because live `/api/health` reports
+`{"status":"ok","build_sha":"unidentified"}` rather than the candidate
+SHA; its service worker cache is also `rrl-shell-unidentified`. Thus the live
+backend cannot be confirmed as this candidate. Further, Studio's 365-day
+retention and team-pack API endpoints accepted unlicensed direct requests
+(`201` for each), so the paid entitlement is client-side-only and bypassable.
+
+See [verification-2.md](verification-2.md) for exact commands, evidence, and
+required remediation. Do not release this candidate until its build identity
+is injected and premium operations enforce entitlement server-side.
+
 ## Repair verification — **PASS locally** (2026-08-28)
 
 This repair addresses every issue in the independent verifier report below

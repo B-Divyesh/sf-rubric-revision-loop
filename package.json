@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "npm run test:frontend && cargo test && npm run test:service-worker && npm run test:build-identity",
+    "test": "npm run test:frontend && cargo test && npm run test:service-worker && npm run test:build-identity && npm run test:browser",
     "lint": "npx tsc --noEmit && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
     "test:frontend": "vitest run",
+    "test:browser": "playwright test",
     "test:service-worker": "BUILD_SHA=regression-cache-key npm run build && node -e \"const fs=require('fs'); const worker=fs.readFileSync('dist/sw.js','utf8'); if (!worker.includes(\\\"rrl-shell-regression-cache-key\\\") || worker.includes('__BUILD_SHA__')) process.exitCode=1;\"",
     "test:build-identity": "node -e \"const fs=require('fs'); const docker=fs.readFileSync('Dockerfile','utf8'); const required=['ARG BUILD_SHA=dev','ENV BUILD_SHA=\\${BUILD_SHA}']; if (docker.includes('unidentified') || !required.every(value => docker.includes(value)) || docker.split(required[1]).length - 1 !== 2) throw new Error('Dockerfile must pass BUILD_SHA to both frontend and backend builds');\""
   },
@@ -16,6 +17,7 @@
     "svelte": "^5.38.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.58.2",
     "@sveltejs/vite-plugin-svelte": "^6.1.0",
     "@types/node": "^24.10.1",
     "axe-core": "^4.13.0",

@@ -15,10 +15,10 @@
     <h2>How it is used</h2>
     <p>Data is used only to provide the revision workflow. It is not sold, used for advertising, or used to train machine-learning models. No third-party analytics or runtime scripts are loaded.</p>
     <h2>Control and retention</h2>
-    <p>Teachers can export or permanently delete their workspace at any time. Free links expire after 30 days; paid retention options can extend a link to 365 days. Teachers should use classroom identifiers rather than full student names.</p>
+    <p>Teachers can export or permanently delete their workspace at any time. Free links expire after 30 days; paid retention options can extend a link to 365 days. At expiry, the link and its student writing are permanently deleted during the next link, queue, export, or feedback-creation request. Teachers should use classroom identifiers rather than full student names.</p>
     <h2>Billing</h2>
     <p>For Studio purchases, Sociobot and Dodo act as merchant of record. This product stores only the license token in the buyer’s browser; payment card details never reach this service.</p>
-    <p class="policy-date">Effective August 27, 2026</p>
+    <p class="policy-date">Effective August 28, 2026</p>
   {:else}
     <p class="eyebrow">Plain-language policy</p>
     <h1>Terms</h1>

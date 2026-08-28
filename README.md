@@ -19,7 +19,8 @@ writing to an LLM.
 - The teacher workspace is identified by a random key stored in that browser.
   No account, teacher email, or student email is required.
 - Student links reveal only the selected criteria, assignment context, and that
-  student’s submission. Free links expire after 30 days.
+  student’s submission. When a link expires, its revision evidence and link
+  record are permanently deleted during the next relevant request.
 - Students check each criterion and submit focused before/after excerpts plus
   an explanation. Teachers can review, reopen, copy, or delete each link.
 - JSON export and permanent workspace deletion are available to everyone.
@@ -27,6 +28,9 @@ writing to an LLM.
   one-year retention. Licenses are bought and verified by Sociobot; no payment
   provider is embedded here. The API independently verifies the license before
   it creates a paid-retention link or creates/imports a team pack.
+- Anonymous writes are limited to 60 changes per minute per client and
+  workspace. Each workspace is bounded to 100 rubric codes, 500 feedback
+  links, and 50 active team packs so one client cannot exhaust shared storage.
 
 ## Local development
 
@@ -44,7 +48,7 @@ another. Vite proxies `/api` to port 8080.
 ## Test and verify
 
 ```bash
-npm test               # Vitest plus Rust API/integration tests
+npm test               # Vitest, Rust API/integration, and Chromium journeys
 npm run build
 curl http://localhost:8080/api/health
 ```

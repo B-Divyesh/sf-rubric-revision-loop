@@ -27,17 +27,20 @@ async fn main() -> anyhow::Result<()> {
     let billing_base_url =
         std::env::var("BILLING_BASE_URL").unwrap_or_else(|_| "https://api.sociobot.in".into());
     let pool = open_database(&database_url).await?;
-    let state = AppState {
+    let state = AppState::new(
         pool,
-        studio: rubric_revision_loop::StudioVerifier::billing(billing_base_url),
-    };
+        rubric_revision_loop::StudioVerifier::billing(billing_base_url),
+    );
     let app = build_app(state, AppConfig { dist_dir });
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await?;
     info!(%addr, build_sha = option_env!("BUILD_SHA").unwrap_or("dev"), "server_started");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown())
+    .await?;
     Ok(())
 }
 

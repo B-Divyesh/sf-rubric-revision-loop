@@ -38,7 +38,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .skip-link:focus { transform: translateY(0); }
 .offline-banner { padding: 8px 16px; color: #fff; background: #6f321e; text-align: center; font-weight: 700; }
 .app-header, .student-header, .simple-header { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px clamp(16px, 4vw, 48px); border-bottom: 1px solid var(--hairline); background: rgba(255, 253, 247, .82); }
-.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-family: Georgia, serif; font-size: 1.05rem; font-weight: 700; text-decoration: none; }
+.brand { display: inline-flex; min-height: 44px; align-items: center; gap: 10px; color: var(--ink); font-family: Georgia, serif; font-size: 1.05rem; font-weight: 700; text-decoration: none; }
 .brand span { display: grid; width: 42px; height: 42px; place-items: center; color: #fff; background: var(--moss); border-radius: 50% 50% 45% 55%; box-shadow: 2px 3px 0 #b99d65; }
 .local-chip, .privacy-chip { color: var(--pencil); font-size: .875rem; font-weight: 700; }
 .local-chip span { color: var(--moss); }
@@ -166,6 +166,7 @@ blockquote { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .loading-state { min-height: 340px; display: grid; place-content: center; justify-items: center; gap: 16px; color: var(--pencil); }
 .paper-pulse { width: 70px; height: 54px; border: 1px solid var(--hairline); background: var(--paper); box-shadow: var(--shadow); animation: paper-pulse 1.2s ease-in-out infinite alternate; }
 .site-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; min-height: 64px; padding: 16px 24px; color: #55615b; border-top: 1px solid var(--hairline); background: #e9dfca; font-size: .82rem; }
+.site-footer a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
 .app-footer { margin-left: 270px; }
 .simple-header, .student-header { background: var(--paper); }
 .legal-page { width: min(760px, calc(100% - 32px)); min-height: calc(100vh - 132px); margin: 0 auto; padding: 64px 0 80px; }
@@ -218,7 +219,10 @@ blockquote { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .local-chip { display: none; }
   .app-shell { display: block; }
   .sidebar { padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--hairline); }
-  .sidebar-title, .principle-note { display: none; }
+  .principle-note { display: none; }
+  .sidebar-title { margin: 0 8px 12px; }
+  .sidebar-title .eyebrow { display: none; }
+  .sidebar-title h1 { max-width: none; font-size: 1.35rem; letter-spacing: -.02em; }
   .sidebar nav { display: flex; overflow-x: auto; padding: 3px; }
   .sidebar nav button { flex: 0 0 auto; width: auto; }
   .sidebar nav button > span { display: none; }

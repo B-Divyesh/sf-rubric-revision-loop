@@ -1,6 +1,6 @@
 use axum::{
-    extract::{DefaultBodyLimit, Path, State},
-    http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, State},
+    http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
@@ -11,7 +11,14 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
 };
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     services::{ServeDir, ServeFile},
@@ -24,6 +31,70 @@ use uuid::Uuid;
 pub struct AppState {
     pub pool: SqlitePool,
     pub studio: StudioVerifier,
+    write_limiter: WriteRateLimiter,
+}
+
+impl AppState {
+    pub fn new(pool: SqlitePool, studio: StudioVerifier) -> Self {
+        Self {
+            pool,
+            studio,
+            write_limiter: WriteRateLimiter::new(60, Duration::from_secs(60)),
+        }
+    }
+}
+
+const MAX_RUBRICS_PER_WORKSPACE: i64 = 100;
+const MAX_LOOPS_PER_WORKSPACE: i64 = 500;
+const MAX_PACKS_PER_WORKSPACE: i64 = 50;
+const MAX_RATE_BUCKETS: usize = 20_000;
+
+#[derive(Clone)]
+struct WriteRateLimiter {
+    buckets: Arc<Mutex<HashMap<String, RateBucket>>>,
+    max_per_window: u32,
+    window: Duration,
+}
+
+struct RateBucket {
+    started: Instant,
+    count: u32,
+}
+
+impl WriteRateLimiter {
+    fn new(max_per_window: u32, window: Duration) -> Self {
+        Self {
+            buckets: Arc::new(Mutex::new(HashMap::new())),
+            max_per_window,
+            window,
+        }
+    }
+
+    fn accept(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let Ok(mut buckets) = self.buckets.lock() else {
+            return false;
+        };
+        if buckets.len() >= MAX_RATE_BUCKETS {
+            buckets.retain(|_, bucket| now.duration_since(bucket.started) < self.window);
+            if buckets.len() >= MAX_RATE_BUCKETS && !buckets.contains_key(key) {
+                return false;
+            }
+        }
+        let bucket = buckets.entry(key.to_owned()).or_insert(RateBucket {
+            started: now,
+            count: 0,
+        });
+        if now.duration_since(bucket.started) >= self.window {
+            bucket.started = now;
+            bucket.count = 0;
+        }
+        if bucket.count >= self.max_per_window {
+            return false;
+        }
+        bucket.count += 1;
+        true
+    }
 }
 
 /// Premium operations are authorized by Sociobot at the API boundary.  The
@@ -112,6 +183,10 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .route("/export", get(export_workspace))
         .route("/workspace", delete(delete_workspace))
         .fallback(api_not_found)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            enforce_write_rate,
+        ))
         .layer(DefaultBodyLimit::max(64 * 1024));
     let static_files = ServeDir::new(&config.dist_dir)
         .append_index_html_on_directories(true)
@@ -123,11 +198,68 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
         .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")))
         .layer(SetResponseHeaderLayer::if_not_present(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
+        .layer(SetResponseHeaderLayer::if_not_present(header::STRICT_TRANSPORT_SECURITY, HeaderValue::from_static("max-age=31536000")))
         .layer(SetResponseHeaderLayer::if_not_present(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.sociobot.in https://pilot-api.sociobot.in; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://api.sociobot.in")))
         .layer(PropagateRequestIdLayer::new(request_id.clone()))
         .layer(SetRequestIdLayer::new(request_id, MakeRequestUuid))
         .layer(TraceLayer::new_for_http())
         .layer(middleware::from_fn(cache_control))
+}
+
+async fn enforce_write_rate(
+    State(state): State<AppState>,
+    request: axum::extract::Request,
+    next: Next,
+) -> Response {
+    if matches!(
+        *request.method(),
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    ) {
+        let mut keys = Vec::with_capacity(2);
+        if let Some(forwarded) = request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok())
+            // The platform appends the peer address; using the final valid IP
+            // prevents a caller-provided prefix from minting limiter buckets.
+            .and_then(|value| value.split(',').next_back())
+            .map(str::trim)
+            .and_then(|value| value.parse::<IpAddr>().ok())
+        {
+            keys.push(format!("ip:{forwarded}"));
+        } else if let Some(ConnectInfo(address)) =
+            request.extensions().get::<ConnectInfo<SocketAddr>>()
+        {
+            keys.push(format!("ip:{}", address.ip()));
+        }
+        if let Some(workspace) = request
+            .headers()
+            .get("x-workspace-key")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| value.len() <= 128)
+        {
+            keys.push(format!("workspace:{workspace}"));
+        } else if let Some(token) = request
+            .uri()
+            .path()
+            .strip_prefix("/api/student/")
+            .and_then(|path| path.split('/').next())
+            .filter(|value| value.len() == 32)
+        {
+            keys.push(format!("student:{token}"));
+        }
+        if keys.iter().any(|key| !state.write_limiter.accept(key)) {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [(header::RETRY_AFTER, "60")],
+                Json(ErrorBody {
+                    error: "Too many changes were requested. Wait a minute and try again.".into(),
+                }),
+            )
+                .into_response();
+        }
+    }
+    next.run(request).await
 }
 
 /// Keep deploys fresh while allowing content-addressed production assets to stay cached.
@@ -209,6 +341,14 @@ async fn create_rubric(
     Json(input): Json<RubricInput>,
 ) -> Result<(StatusCode, Json<RubricCode>), ApiError> {
     let key = workspace_key(&headers)?;
+    enforce_workspace_quota(
+        &state.pool,
+        "rubric_codes",
+        &key,
+        MAX_RUBRICS_PER_WORKSPACE,
+        "rubric codes",
+    )
+    .await?;
     let code = clean_required("Code", &input.code, 2, 12)?.to_uppercase();
     if !code
         .chars()
@@ -321,6 +461,15 @@ async fn create_loop(
     Json(input): Json<LoopInput>,
 ) -> Result<(StatusCode, Json<CreatedLoop>), ApiError> {
     let key = workspace_key(&headers)?;
+    purge_expired_data(&state.pool).await?;
+    enforce_workspace_quota(
+        &state.pool,
+        "feedback_loops",
+        &key,
+        MAX_LOOPS_PER_WORKSPACE,
+        "feedback links",
+    )
+    .await?;
     let title = clean_required("Assignment title", &input.assignment_title, 2, 120)?;
     let label = clean_optional(input.student_label.as_deref().unwrap_or(""), 80)?;
     let note = clean_optional(input.teacher_note.as_deref().unwrap_or(""), 800)?;
@@ -405,6 +554,7 @@ async fn list_loops(
     headers: HeaderMap,
 ) -> Result<Json<ListResponse<FeedbackLoop>>, ApiError> {
     let key = workspace_key(&headers)?;
+    purge_expired_data(&state.pool).await?;
     let rows = sqlx::query("SELECT * FROM feedback_loops WHERE workspace_key = ? AND deleted_at IS NULL ORDER BY CASE status WHEN 'submitted' THEN 0 WHEN 'awaiting' THEN 1 ELSE 2 END, created_at DESC")
         .bind(key).fetch_all(&state.pool).await?;
     let mut items = Vec::with_capacity(rows.len());
@@ -452,23 +602,14 @@ async fn delete_loop(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let key = workspace_key(&headers)?;
-    let mut tx = state.pool.begin().await?;
-    let result = sqlx::query("UPDATE feedback_loops SET deleted_at = datetime('now') WHERE id = ? AND workspace_key = ? AND deleted_at IS NULL")
+    let result = sqlx::query("DELETE FROM feedback_loops WHERE id = ? AND workspace_key = ?")
         .bind(id)
         .bind(key)
-        .execute(&mut *tx)
+        .execute(&state.pool)
         .await?;
     if result.rows_affected() == 0 {
         Err(ApiError::not_found("Feedback link not found."))
     } else {
-        // A deleted link must no longer hold a rubric hostage. The soft-deleted
-        // loop remains for deletion bookkeeping, while its no-longer-reachable
-        // assignment relationships are removed.
-        sqlx::query("DELETE FROM loop_codes WHERE loop_id = ?")
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
         Ok(StatusCode::NO_CONTENT)
     }
 }
@@ -537,6 +678,7 @@ async fn student_loop(
         .fetch_one(&state.pool)
         .await?;
     if expired == 1 {
+        purge_loop(&state.pool, row.get("id")).await?;
         return Err(ApiError::gone(
             "This revision link has expired. Ask your teacher for a new link.",
         ));
@@ -572,7 +714,23 @@ async fn submit_revision(
     let before = clean_required("Before excerpt", &input.before_excerpt, 1, 4000)?;
     let after = clean_required("After excerpt", &input.after_excerpt, 1, 4000)?;
     let explanation = clean_required("Revision explanation", &input.explanation, 8, 2000)?;
-    let row = sqlx::query("SELECT id, status, created_at, retention_days FROM feedback_loops WHERE token = ? AND deleted_at IS NULL AND datetime(created_at, '+' || retention_days || ' days') >= datetime('now')").bind(&token).fetch_optional(&state.pool).await?.ok_or_else(|| ApiError::not_found("This revision link was not found, has expired, or was deleted."))?;
+    let row = sqlx::query("SELECT id, status, created_at, retention_days FROM feedback_loops WHERE token = ? AND deleted_at IS NULL")
+        .bind(&token)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| ApiError::not_found("This revision link was not found or was deleted."))?;
+    let expired: bool =
+        sqlx::query_scalar("SELECT datetime(?, '+' || ? || ' days') < datetime('now')")
+            .bind(row.get::<String, _>("created_at"))
+            .bind(row.get::<i64, _>("retention_days"))
+            .fetch_one(&state.pool)
+            .await?;
+    if expired {
+        purge_loop(&state.pool, row.get("id")).await?;
+        return Err(ApiError::gone(
+            "This revision link has expired. Ask your teacher for a new link.",
+        ));
+    }
     if row.get::<String, _>("status") == "reviewed" {
         return Err(ApiError::conflict(
             "This revision has already been reviewed. Ask your teacher to reopen it.",
@@ -610,6 +768,7 @@ async fn export_workspace(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let key = workspace_key(&headers)?;
+    purge_expired_data(&state.pool).await?;
     let rubric_rows = sqlx::query("SELECT id, code, title, guidance, next_step, created_at FROM rubric_codes WHERE workspace_key = ? ORDER BY code").bind(&key).fetch_all(&state.pool).await?;
     let loop_rows = sqlx::query("SELECT * FROM feedback_loops WHERE workspace_key = ? AND deleted_at IS NULL ORDER BY created_at DESC").bind(key).fetch_all(&state.pool).await?;
     let mut loops = Vec::new();
@@ -658,6 +817,15 @@ async fn create_pack(
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let key = workspace_key(&headers)?;
     require_studio(&state, &headers).await?;
+    purge_expired_data(&state.pool).await?;
+    enforce_workspace_quota(
+        &state.pool,
+        "rubric_packs",
+        &key,
+        MAX_PACKS_PER_WORKSPACE,
+        "team packs",
+    )
+    .await?;
     if input.rubric_ids.is_empty() || input.rubric_ids.len() > 100 {
         return Err(ApiError::validation(
             "Choose between 1 and 100 rubric codes for a team pack.",
@@ -713,6 +881,20 @@ async fn import_pack(
         .await?
         .ok_or_else(|| ApiError::not_found("This team pack was not found or has expired."))?;
     let pack: Vec<PackRubric> = serde_json::from_str(&raw).map_err(|_| ApiError::internal())?;
+    let existing_codes: Vec<String> =
+        sqlx::query_scalar("SELECT lower(code) FROM rubric_codes WHERE workspace_key = ?")
+            .bind(&key)
+            .fetch_all(&state.pool)
+            .await?;
+    let new_count = pack
+        .iter()
+        .filter(|rubric| !existing_codes.contains(&rubric.code.to_lowercase()))
+        .count() as i64;
+    if existing_codes.len() as i64 + new_count > MAX_RUBRICS_PER_WORKSPACE {
+        return Err(ApiError::quota(&format!(
+            "This workspace can store up to {MAX_RUBRICS_PER_WORKSPACE} rubric codes. Delete unused codes before importing this pack."
+        )));
+    }
     let mut imported = 0_u64;
     let mut tx = state.pool.begin().await?;
     for rubric in pack {
@@ -760,6 +942,53 @@ async fn delete_workspace(
         .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn enforce_workspace_quota(
+    pool: &SqlitePool,
+    table: &str,
+    workspace_key: &str,
+    maximum: i64,
+    resource: &str,
+) -> Result<(), ApiError> {
+    // Table names are selected only by server-owned call sites; user data is
+    // still bound as a query parameter.
+    let sql = format!("SELECT COUNT(*) FROM {table} WHERE workspace_key = ?");
+    let count: i64 = sqlx::query_scalar(&sql)
+        .bind(workspace_key)
+        .fetch_one(pool)
+        .await?;
+    if count >= maximum {
+        return Err(ApiError::quota(&format!(
+            "This workspace can store up to {maximum} {resource}. Delete unused items before creating another."
+        )));
+    }
+    Ok(())
+}
+
+async fn purge_loop(pool: &SqlitePool, id: i64) -> Result<(), ApiError> {
+    sqlx::query("DELETE FROM feedback_loops WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Retention is a deletion promise, not merely an access-control timer.
+/// Opportunistic cleanup keeps the single-file store bounded without a
+/// scheduler in the one-container deployment.
+async fn purge_expired_data(pool: &SqlitePool) -> Result<(), ApiError> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM feedback_loops WHERE datetime(created_at, '+' || retention_days || ' days') < datetime('now')")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "DELETE FROM rubric_packs WHERE datetime(created_at, '+30 days') < datetime('now')",
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 fn workspace_key(headers: &HeaderMap) -> Result<String, ApiError> {
@@ -874,6 +1103,12 @@ impl ApiError {
             message: message.into(),
         }
     }
+    fn quota(message: &str) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            message: message.into(),
+        }
+    }
     fn forbidden(message: &str) -> Self {
         Self {
             status: StatusCode::FORBIDDEN,
@@ -896,6 +1131,18 @@ impl ApiError {
 
 impl From<sqlx::Error> for ApiError {
     fn from(error: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(database) = &error {
+            let message = database.message();
+            if message.contains("workspace rubric quota reached") {
+                return Self::quota("This workspace can store up to 100 rubric codes. Delete unused codes before creating another.");
+            }
+            if message.contains("workspace loop quota reached") {
+                return Self::quota("This workspace can store up to 500 feedback links. Delete unused links before creating another.");
+            }
+            if message.contains("workspace pack quota reached") {
+                return Self::quota("This workspace can store up to 50 team packs. Delete unused items before creating another.");
+            }
+        }
         tracing::error!(?error, "database_error");
         Self::internal()
     }
@@ -924,12 +1171,12 @@ mod tests {
     async fn test_app() -> Router {
         let pool = open_database("sqlite::memory:").await.unwrap();
         build_app(
-            AppState {
+            AppState::new(
                 pool,
-                studio: StudioVerifier::Static {
+                StudioVerifier::Static {
                     valid_license: "studio-test-license".into(),
                 },
-            },
+            ),
             AppConfig {
                 dist_dir: PathBuf::from("dist"),
             },
@@ -1187,12 +1434,12 @@ mod tests {
     async fn deletes_a_rubric_after_cleaning_a_legacy_soft_deleted_link() {
         let pool = open_database("sqlite::memory:").await.unwrap();
         let app = build_app(
-            AppState {
-                pool: pool.clone(),
-                studio: StudioVerifier::Static {
+            AppState::new(
+                pool.clone(),
+                StudioVerifier::Static {
                     valid_license: "studio-test-license".into(),
                 },
-            },
+            ),
             AppConfig {
                 dist_dir: PathBuf::from("dist"),
             },
@@ -1218,6 +1465,212 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rate_limits_anonymous_workspace_writes_with_retry_guidance() {
+        let app = test_app().await;
+        for index in 0..60 {
+            let (status, _) = json_response(
+                app.clone(),
+                api(
+                    "POST",
+                    "/api/rubrics",
+                    serde_json::json!({
+                        "code": format!("R{index}"),
+                        "title": format!("Reason {index}"),
+                        "guidance": "Explain what needs to change in this draft.",
+                        "next_step": "Revise one sentence and explain the change."
+                    }),
+                ),
+            )
+            .await;
+            assert_eq!(status, StatusCode::CREATED, "write {index} failed");
+        }
+        let response = app
+            .oneshot(api(
+                "POST",
+                "/api/rubrics",
+                serde_json::json!({
+                    "code": "R60",
+                    "title": "Reason 60",
+                    "guidance": "Explain what needs to change in this draft.",
+                    "next_step": "Revise one sentence and explain the change."
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "60");
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body["error"],
+            "Too many changes were requested. Wait a minute and try again."
+        );
+
+        let app = test_app().await;
+        for index in 0..60 {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/api/rubrics")
+                .header("content-type", "application/json")
+                .header("x-forwarded-for", "203.0.113.42")
+                .header(
+                    "x-workspace-key",
+                    format!("workspace_{index:023}_unique_key"),
+                )
+                .body(Body::from("{}"))
+                .unwrap();
+            assert_eq!(
+                json_response(app.clone(), request).await.0,
+                StatusCode::UNPROCESSABLE_ENTITY
+            );
+        }
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/rubrics")
+            .header("content-type", "application/json")
+            .header("x-forwarded-for", "203.0.113.42")
+            .header(
+                "x-workspace-key",
+                "workspace_99999999999999999999999_unique_key",
+            )
+            .body(Body::from("{}"))
+            .unwrap();
+        assert_eq!(
+            json_response(app, request).await.0,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+
+    #[tokio::test]
+    async fn enforces_workspace_resource_quota_at_the_database_boundary() {
+        let pool = open_database("sqlite::memory:").await.unwrap();
+        let key = "teacher_workspace_key_1234567890";
+        for index in 0..MAX_RUBRICS_PER_WORKSPACE {
+            sqlx::query("INSERT INTO rubric_codes (workspace_key, code, title, guidance, next_step) VALUES (?, ?, 'Reason', 'Long enough guidance', 'Long enough next step')")
+                .bind(key)
+                .bind(format!("Q{index}"))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let error = sqlx::query("INSERT INTO rubric_codes (workspace_key, code, title, guidance, next_step) VALUES (?, 'OVER', 'Reason', 'Long enough guidance', 'Long enough next step')")
+            .bind(key)
+            .execute(&pool)
+            .await
+            .unwrap_err();
+        let api_error: ApiError = error.into();
+        assert_eq!(api_error.status, StatusCode::CONFLICT);
+        assert!(api_error.message.contains("up to 100 rubric codes"));
+
+        for index in 0..MAX_LOOPS_PER_WORKSPACE {
+            sqlx::query("INSERT INTO feedback_loops (token, workspace_key, assignment_title) VALUES (?, ?, 'Assignment')")
+                .bind(format!("{index:032x}"))
+                .bind(key)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let error = sqlx::query("INSERT INTO feedback_loops (token, workspace_key, assignment_title) VALUES ('ffffffffffffffffffffffffffffffff', ?, 'Over limit')")
+            .bind(key)
+            .execute(&pool)
+            .await
+            .unwrap_err();
+        let api_error: ApiError = error.into();
+        assert_eq!(api_error.status, StatusCode::CONFLICT);
+        assert!(api_error.message.contains("up to 500 feedback links"));
+
+        for index in 0..MAX_PACKS_PER_WORKSPACE {
+            sqlx::query(
+                "INSERT INTO rubric_packs (token, workspace_key, rubric_json) VALUES (?, ?, '[]')",
+            )
+            .bind(format!("pack-{index}"))
+            .bind(key)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let error = sqlx::query("INSERT INTO rubric_packs (token, workspace_key, rubric_json) VALUES ('pack-over-limit', ?, '[]')")
+            .bind(key)
+            .execute(&pool)
+            .await
+            .unwrap_err();
+        let api_error: ApiError = error.into();
+        assert_eq!(api_error.status, StatusCode::CONFLICT);
+        assert!(api_error.message.contains("up to 50 team packs"));
+    }
+
+    #[tokio::test]
+    async fn expired_link_purges_student_writing_from_queue_and_export() {
+        let pool = open_database("sqlite::memory:").await.unwrap();
+        let app = build_app(
+            AppState::new(
+                pool.clone(),
+                StudioVerifier::Static {
+                    valid_license: "studio-test-license".into(),
+                },
+            ),
+            AppConfig {
+                dist_dir: PathBuf::from("dist"),
+            },
+        );
+        let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"EV-1","title":"Use evidence","guidance":"Connect a quotation to the claim you make.","next_step":"Add one sentence explaining how the quotation proves the claim."}))).await;
+        let rubric_id = rubric["id"].as_i64().unwrap();
+        let (_, created) = json_response(
+            app.clone(),
+            api(
+                "POST",
+                "/api/loops",
+                serde_json::json!({"assignment_title":"Private draft","rubric_ids":[rubric_id]}),
+            ),
+        )
+        .await;
+        let token = created["token"].as_str().unwrap();
+        let private_phrase = "PRIVATE-STUDENT-WRITING";
+        let revision = Request::builder()
+            .method("POST")
+            .uri(format!("/api/student/{token}/revision"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::json!({"before_excerpt":private_phrase,"after_excerpt":"Revised private text","explanation":"I changed the evidence to make the reason clearer.","checklist":[rubric_id]}).to_string()))
+            .unwrap();
+        assert_eq!(json_response(app.clone(), revision).await.0, StatusCode::OK);
+        sqlx::query(
+            "UPDATE feedback_loops SET created_at = datetime('now', '-31 days') WHERE token = ?",
+        )
+        .bind(token)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let (status, body) = json_response(
+            app.clone(),
+            Request::builder()
+                .uri(format!("/api/student/{token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::GONE);
+        assert!(body["error"].as_str().unwrap().contains("expired"));
+        let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM feedback_loops WHERE token = ?")
+            .bind(token)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(stored, 0, "expired writing must be physically deleted");
+
+        let (_, queue) = json_response(
+            app.clone(),
+            api("GET", "/api/loops", serde_json::Value::Null),
+        )
+        .await;
+        assert_eq!(queue["items"], serde_json::json!([]));
+        let (_, export) =
+            json_response(app, api("GET", "/api/export", serde_json::Value::Null)).await;
+        assert!(!export.to_string().contains(private_phrase));
+        assert_eq!(export["feedback_loops"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
     async fn applies_cache_policy_for_private_api_assets_and_service_worker() {
         let temp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(temp.path().join("assets")).unwrap();
@@ -1230,12 +1683,12 @@ mod tests {
         std::fs::write(temp.path().join("sw.js"), "// worker").unwrap();
         let pool = open_database("sqlite::memory:").await.unwrap();
         let app = build_app(
-            AppState {
+            AppState::new(
                 pool,
-                studio: StudioVerifier::Static {
+                StudioVerifier::Static {
                     valid_license: "studio-test-license".into(),
                 },
-            },
+            ),
             AppConfig {
                 dist_dir: temp.path().to_path_buf(),
             },
@@ -1257,6 +1710,13 @@ mod tests {
             assert_eq!(
                 response.headers().get(header::CACHE_CONTROL).unwrap(),
                 expected
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get(header::STRICT_TRANSPORT_SECURITY)
+                    .unwrap(),
+                "max-age=31536000"
             );
         }
     }

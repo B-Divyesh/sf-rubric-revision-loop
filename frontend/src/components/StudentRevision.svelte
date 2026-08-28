@@ -40,7 +40,7 @@
   <a class="brand" href="/" aria-label="Rubric Revision Loop home"><span aria-hidden="true">R↻</span> Revision slip</a>
   <span class="privacy-chip">No account needed</span>
 </header>
-<main id="main" class="student-main">
+<main id="main" class="student-main" tabindex="-1">
   {#if loading}
     <div class="loading-state" aria-live="polite"><span class="paper-pulse" aria-hidden="true"></span><p>Opening your revision slip…</p></div>
   {:else if error && !item}

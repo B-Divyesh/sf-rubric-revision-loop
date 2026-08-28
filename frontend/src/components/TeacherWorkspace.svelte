@@ -153,7 +153,7 @@
     <div class="principle-note"><span aria-hidden="true">✎</span><p><strong>Your judgment stays central.</strong><br />No generated feedback. No automated grades.</p></div>
   </aside>
 
-  <main id="main" class="workspace-main">
+  <main id="main" class="workspace-main" tabindex="-1">
     <div class="live-region" aria-live="polite">{notice}</div>
     {#if error}<div class="error-banner" role="alert"><span>{error}</span><button aria-label="Dismiss error" onclick={() => error = ''}>×</button></div>{/if}
     {#if loading}
@@ -162,7 +162,7 @@
       <section class="page-heading"><div><p class="eyebrow">New feedback loop</p><h2>Turn a rubric reason into a revision</h2><p>Choose reusable codes, add only the context this student needs, then share one focused link.</p></div><span class="queue-stamp"><strong>{submittedCount}</strong> ready to review</span></section>
       {#if rubrics.length === 0}
         <section class="empty-hero">
-          <picture><source media="(max-width: 700px)" srcset="/assets/revision-loop-hero-720.webp" /><img src="/assets/revision-loop-hero.webp" width="1200" height="800" alt="A paper-cut path connects an annotated page to before-and-after excerpts and a review tray." fetchpriority="high" /></picture>
+          <picture><source media="(max-width: 700px)" srcset="/assets/revision-loop-hero-720.05c4da3f8da5.webp" /><img src="/assets/revision-loop-hero.5c2b2343d4c3.webp" width="1200" height="800" alt="A paper-cut path connects an annotated page to before-and-after excerpts and a review tray." fetchpriority="high" /></picture>
           <div><p class="eyebrow">Start with one reason you repeat</p><h2>Your rubric library is empty</h2><p>Create a short code for feedback you give often. Students will see both your explanation and the concrete next step.</p><button class="button primary" onclick={() => tab = 'rubrics'}>Create your first code</button></div>
         </section>
       {:else}

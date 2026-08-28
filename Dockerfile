@@ -1,11 +1,17 @@
+ARG BUILD_SHA=unidentified
+
 FROM node:22-alpine AS frontend
 WORKDIR /app
+ARG BUILD_SHA
+ENV BUILD_SHA=${BUILD_SHA}
 COPY package.json package-lock.json tsconfig.json vite.config.ts ./
 COPY frontend ./frontend
 RUN npm ci && npm run build
 
 FROM rust:1.88-slim-bookworm AS backend
 WORKDIR /app
+ARG BUILD_SHA
+ENV BUILD_SHA=${BUILD_SHA}
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock ./
 COPY migrations ./migrations

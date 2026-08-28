@@ -1,5 +1,5 @@
-const CACHE = 'rrl-shell-v1';
-const SHELL = ['/', '/assets/revision-loop-hero.webp', '/assets/revision-loop-hero-720.webp'];
+const CACHE = 'rrl-shell-__BUILD_SHA__';
+const SHELL = ['/', '/assets/revision-loop-hero.5c2b2343d4c3.webp', '/assets/revision-loop-hero-720.05c4da3f8da5.webp'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))));
 self.addEventListener('fetch', event => {

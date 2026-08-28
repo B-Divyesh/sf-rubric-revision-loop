@@ -61,12 +61,14 @@ Environment variables:
 ## Container deployment
 
 ```bash
-docker build -t rubric-revision-loop .
+docker build --build-arg BUILD_SHA="$(git rev-parse HEAD)" -t rubric-revision-loop .
 docker run --rm -p 8080:8080 -v rrl-data:/app/data rubric-revision-loop
 ```
 
 The multi-stage image runs as a non-root user and serves the Vite build and
-Axum API together on `PORT`. Mount `/app/data` as a persistent volume.
+Axum API together on `PORT`. Mount `/app/data` as a persistent volume. Pass
+the commit SHA at image build time; `/api/health` reports it for release
+identity verification.
 
 ## Privacy and design
 

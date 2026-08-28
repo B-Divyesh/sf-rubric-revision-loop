@@ -5,7 +5,7 @@
 <header class="simple-header">
   <a class="brand" href="/" aria-label="Rubric Revision Loop home"><span aria-hidden="true">R↻</span> Rubric Revision Loop</a>
 </header>
-<main id="main" class="legal-page">
+<main id="main" class="legal-page" tabindex="-1">
   {#if page === 'privacy'}
     <p class="eyebrow">Plain-language policy</p>
     <h1>Privacy</h1>

@@ -1,5 +1,50 @@
 # Rubric Revision Loop — build handoff
 
+## Repair verification — **PASS locally** (2026-08-28)
+
+This repair addresses every issue in the independent verifier report below
+without changing the researched workflow or deployment class.
+
+- Student submissions now require the exact complete set of rubric ids on the
+  server. A one-of-two submission and a duplicate-id submission return `422
+  Check each rubric step before submitting.` and leave the loop awaiting.
+- A rubric used by an active feedback link returns the promised `409` recovery
+  message. Deleting the feedback link removes its assignment relationship, so
+  the rubric can then be deleted as the message instructs.
+- The Docker build accepts `BUILD_SHA` and supplies it to both the frontend
+  service-worker cache name and the Rust compile. Production image builds must
+  pass `--build-arg BUILD_SHA="$(git rev-parse HEAD)"`; `/api/health` then
+  exposes that exact SHA. An omitted argument is explicitly `unidentified`,
+  never a misleading candidate SHA.
+- Static assets are content-addressed and receive `Cache-Control: public,
+  max-age=31536000, immutable`; HTML and `sw.js` revalidate (`no-cache`); API
+  responses are `no-store`. The service-worker cache is now
+  `rrl-shell-<BUILD_SHA>` and a regression test verifies that its placeholder
+  is replaced.
+- Every routed `<main>` has `tabindex="-1"`. Chromium keyboard verification
+  confirms that Enter on the skip link moves focus to `#main`.
+
+Repair verification completed locally:
+
+- Clean `npm ci`: pass, 0 vulnerabilities.
+- `npm test`: pass — 2 frontend tests, 6 Rust integration tests, and a
+  build-versioned service-worker regression check.
+- `npx tsc --noEmit`, `cargo clippy --all-targets -- -D warnings`, and
+  `cargo build --release --locked`: pass.
+- Production build with `BUILD_SHA=local-release-check`: pass; service worker
+  contains `rrl-shell-local-release-check` and no unresolved placeholder.
+- Chromium 1.58.2 desktop/390px check: full semantic scan has 0 WCAG 2 A/AA
+  violations, skip link focuses `main`, mobile document width is exactly 390,
+  and no console errors occurred.
+- Offline browser check: service worker reached `ready`; a controlled offline
+  reload returned the app with one `<h1>`.
+- Server response-policy regression test covers API `no-store`, immutable
+  assets, and service-worker `no-cache`. A local release binary compiled with
+  `BUILD_SHA=build-identity-test` returned that exact value from `/api/health`.
+
+Container deployment and live URL verification are recorded after the repair
+image is built and promoted.
+
 ## Independent verifier verdict — **FAIL** (2026-08-27)
 
 Candidate `f9606e82711c234c724a65ca7ac00ed87d14cacb`; live URL

@@ -1,6 +1,7 @@
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
     http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
     Json, Router,
@@ -71,6 +72,28 @@ pub fn build_app(state: AppState, config: AppConfig) -> Router {
         .layer(PropagateRequestIdLayer::new(request_id.clone()))
         .layer(SetRequestIdLayer::new(request_id, MakeRequestUuid))
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(cache_control))
+}
+
+/// Keep deploys fresh while allowing content-addressed production assets to stay cached.
+/// Student and teacher API responses contain private classroom data, so they are never
+/// browser-cacheable.
+async fn cache_control(request: axum::extract::Request, next: Next) -> Response {
+    let path = request.uri().path().to_owned();
+    let mut response = next.run(request).await;
+    let value = if path.starts_with("/api/") {
+        "no-store"
+    } else if path.starts_with("/assets/") {
+        "public, max-age=31536000, immutable"
+    } else {
+        // HTML and the service-worker entry point must be revalidated so a new
+        // deployment can take control immediately.
+        "no-cache"
+    };
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
+    response
 }
 
 #[derive(Debug, Serialize)]
@@ -169,14 +192,39 @@ async fn delete_rubric(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let key = workspace_key(&headers)?;
+    let linked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM loop_codes lc JOIN feedback_loops fl ON fl.id = lc.loop_id WHERE lc.rubric_id = ? AND fl.workspace_key = ? AND fl.deleted_at IS NULL)",
+    )
+    .bind(id)
+    .bind(&key)
+    .fetch_one(&state.pool)
+    .await?;
+    if linked {
+        return Err(ApiError::conflict(
+            "This code is used in a feedback link. Delete that link first.",
+        ));
+    }
+    let mut tx = state.pool.begin().await?;
+    // Older deployments soft-deleted links without removing their join rows.
+    // Those links are unreachable, so clear their stale relationships before
+    // deleting the reusable code they used to reference.
+    sqlx::query(
+        "DELETE FROM loop_codes WHERE rubric_id = ? AND loop_id IN (SELECT id FROM feedback_loops WHERE deleted_at IS NOT NULL)",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
     let result = sqlx::query("DELETE FROM rubric_codes WHERE id = ? AND workspace_key = ?")
         .bind(id)
         .bind(key)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await;
     match result {
         Ok(r) if r.rows_affected() == 0 => Err(ApiError::not_found("Rubric code not found.")),
-        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Ok(_) => {
+            tx.commit().await?;
+            Ok(StatusCode::NO_CONTENT)
+        }
         Err(sqlx::Error::Database(e)) if e.is_foreign_key_violation() => Err(ApiError::conflict(
             "This code is used in a feedback link. Delete that link first.",
         )),
@@ -346,10 +394,23 @@ async fn delete_loop(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let key = workspace_key(&headers)?;
-    let result = sqlx::query("UPDATE feedback_loops SET deleted_at = datetime('now') WHERE id = ? AND workspace_key = ? AND deleted_at IS NULL").bind(id).bind(key).execute(&state.pool).await?;
+    let mut tx = state.pool.begin().await?;
+    let result = sqlx::query("UPDATE feedback_loops SET deleted_at = datetime('now') WHERE id = ? AND workspace_key = ? AND deleted_at IS NULL")
+        .bind(id)
+        .bind(key)
+        .execute(&mut *tx)
+        .await?;
     if result.rows_affected() == 0 {
         Err(ApiError::not_found("Feedback link not found."))
     } else {
+        // A deleted link must no longer hold a rubric hostage. The soft-deleted
+        // loop remains for deletion bookkeeping, while its no-longer-reachable
+        // assignment relationships are removed.
+        sqlx::query("DELETE FROM loop_codes WHERE loop_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(StatusCode::NO_CONTENT)
     }
 }
@@ -460,17 +521,20 @@ async fn submit_revision(
         ));
     }
     let id: i64 = row.get("id");
-    let valid_ids: Vec<i64> =
+    let mut assigned_ids: Vec<i64> =
         sqlx::query_scalar("SELECT rubric_id FROM loop_codes WHERE loop_id = ?")
             .bind(id)
             .fetch_all(&state.pool)
             .await?;
-    if input.checklist.is_empty() || input.checklist.iter().any(|v| !valid_ids.contains(v)) {
+    let mut checklist_ids = input.checklist.clone();
+    assigned_ids.sort_unstable();
+    checklist_ids.sort_unstable();
+    if checklist_ids != assigned_ids {
         return Err(ApiError::validation(
             "Check each rubric step before submitting.",
         ));
     }
-    let checklist = serde_json::to_string(&input.checklist).map_err(|_| ApiError::internal())?;
+    let checklist = serde_json::to_string(&checklist_ids).map_err(|_| ApiError::internal())?;
     sqlx::query("UPDATE feedback_loops SET before_excerpt = ?, after_excerpt = ?, explanation = ?, checklist_json = ?, status = 'submitted', submitted_at = datetime('now'), reviewed_at = NULL WHERE id = ?")
         .bind(before).bind(after).bind(explanation).bind(checklist).bind(id).execute(&state.pool).await?;
     Ok(Json(serde_json::json!({ "status": "submitted" })))
@@ -872,5 +936,151 @@ mod tests {
             .unwrap();
         let (_, library) = json_response(app, request).await;
         assert_eq!(library["items"][0]["code"], "ORG-2");
+    }
+
+    #[tokio::test]
+    async fn rejects_incomplete_or_duplicate_checklists_without_storing_a_revision() {
+        let app = test_app().await;
+        let (_, first) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"EV-1","title":"Use evidence","guidance":"Connect a quotation to the claim you make.","next_step":"Add one sentence explaining how the quotation proves the claim."}))).await;
+        let (_, second) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"ORG-2","title":"Organize reasons","guidance":"Arrange reasons so each one builds on the last.","next_step":"Move one sentence and explain why the new order is clearer."}))).await;
+        let (_, loop_json) = json_response(app.clone(), api("POST", "/api/loops", serde_json::json!({"assignment_title":"Argument paragraph","rubric_ids":[first["id"], second["id"]]}))).await;
+        let token = loop_json["token"].as_str().unwrap();
+        let revision = |checklist: serde_json::Value| {
+            Request::builder().method("POST").uri(format!("/api/student/{token}/revision")).header("content-type", "application/json").body(Body::from(serde_json::json!({"before_excerpt":"Before.","after_excerpt":"After.","explanation":"I made the evidence and organization clearer.","checklist":checklist}).to_string())).unwrap()
+        };
+
+        let (status, body) =
+            json_response(app.clone(), revision(serde_json::json!([first["id"]]))).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body["error"], "Check each rubric step before submitting.");
+        let (status, _) = json_response(
+            app.clone(),
+            revision(serde_json::json!([first["id"], first["id"]])),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        let (status, student) = json_response(
+            app,
+            Request::builder()
+                .uri(format!("/api/student/{token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(student["status"], "awaiting");
+        assert_eq!(student["checklist"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn linked_rubric_returns_recoverable_conflict_then_deletes_after_link_removal() {
+        let app = test_app().await;
+        let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"EV-1","title":"Use evidence","guidance":"Connect a quotation to the claim you make.","next_step":"Add one sentence explaining how the quotation proves the claim."}))).await;
+        let (_, loop_json) = json_response(app.clone(), api("POST", "/api/loops", serde_json::json!({"assignment_title":"Argument paragraph","rubric_ids":[rubric["id"]]}))).await;
+        let rubric_id = rubric["id"].as_i64().unwrap();
+        let loop_id = loop_json["id"].as_i64().unwrap();
+
+        let (status, body) = json_response(
+            app.clone(),
+            api(
+                "DELETE",
+                &format!("/api/rubrics/{rubric_id}"),
+                serde_json::Value::Null,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(
+            body["error"],
+            "This code is used in a feedback link. Delete that link first."
+        );
+        let (status, _) = json_response(
+            app.clone(),
+            api(
+                "DELETE",
+                &format!("/api/loops/{loop_id}"),
+                serde_json::Value::Null,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, _) = json_response(
+            app,
+            api(
+                "DELETE",
+                &format!("/api/rubrics/{rubric_id}"),
+                serde_json::Value::Null,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn deletes_a_rubric_after_cleaning_a_legacy_soft_deleted_link() {
+        let pool = open_database("sqlite::memory:").await.unwrap();
+        let app = build_app(
+            AppState { pool: pool.clone() },
+            AppConfig {
+                dist_dir: PathBuf::from("dist"),
+            },
+        );
+        let (_, rubric) = json_response(app.clone(), api("POST", "/api/rubrics", serde_json::json!({"code":"EV-1","title":"Use evidence","guidance":"Connect a quotation to the claim you make.","next_step":"Add one sentence explaining how the quotation proves the claim."}))).await;
+        let (_, loop_json) = json_response(app.clone(), api("POST", "/api/loops", serde_json::json!({"assignment_title":"Argument paragraph","rubric_ids":[rubric["id"]]}))).await;
+        sqlx::query("UPDATE feedback_loops SET deleted_at = datetime('now') WHERE id = ?")
+            .bind(loop_json["id"].as_i64().unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let (status, _) = json_response(
+            app,
+            api(
+                "DELETE",
+                &format!("/api/rubrics/{}", rubric["id"].as_i64().unwrap()),
+                serde_json::Value::Null,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn applies_cache_policy_for_private_api_assets_and_service_worker() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("assets")).unwrap();
+        std::fs::write(
+            temp.path().join("index.html"),
+            "<html><body>Revision loop</body></html>",
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("assets/app-abc123.js"), "export {};").unwrap();
+        std::fs::write(temp.path().join("sw.js"), "// worker").unwrap();
+        let pool = open_database("sqlite::memory:").await.unwrap();
+        let app = build_app(
+            AppState { pool },
+            AppConfig {
+                dist_dir: temp.path().to_path_buf(),
+            },
+        );
+
+        for (uri, expected) in [
+            ("/api/health", "no-store"),
+            (
+                "/assets/app-abc123.js",
+                "public, max-age=31536000, immutable",
+            ),
+            ("/sw.js", "no-cache"),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).unwrap(),
+                expected
+            );
+        }
     }
 }

@@ -1,0 +1,63 @@
+{
+  "candidate": "f02906400387d14e6866a55ef890b74a198ea846",
+  "url": "https://rubric-revision-loop.sociobot.in",
+  "desktop": {
+    "viewport": "1440x900",
+    "title": "Rubric Revision Loop",
+    "lang": "en",
+    "h1_count": 1,
+    "main_count": 1,
+    "body_font_px": 16,
+    "skip_link_first_and_visible": true,
+    "skip_link_focus_outline": "rgb(12, 91, 136) solid 3px",
+    "skip_link_enter_focuses_main": true,
+    "student_submit_status_focused": true,
+    "reviewed_form_read_only": true,
+    "queue_contains_before_and_after": true,
+    "console_errors": [],
+    "page_errors": [],
+    "failed_requests": [],
+    "healthy_journey_origins": [
+      "https://rubric-revision-loop.sociobot.in"
+    ]
+  },
+  "mobile": {
+    "viewport": "390x844",
+    "h1_count": 1,
+    "h1_visible": true,
+    "client_width": 390,
+    "scroll_width": 390,
+    "brand_target": "194.625x44",
+    "privacy_target": "47.469x44",
+    "terms_target": "44x44",
+    "reduced_motion_duration_seconds": 0.00001,
+    "console_errors": [],
+    "page_errors": []
+  },
+  "axe": {
+    "version": "4.13.0",
+    "default_serious_or_critical": 0,
+    "wcag_2_5_3_rule_enabled_serious_or_critical": 1,
+    "violation": {
+      "id": "label-content-name-mismatch",
+      "impact": "serious",
+      "target": ".brand",
+      "tags": ["wcag21a", "wcag253"]
+    }
+  },
+  "pwa": {
+    "controlled": true,
+    "caches_after_fresh_install": [
+      "rrl-shell-f02906400387d14e6866a55ef890b74a198ea846"
+    ],
+    "obsolete_cache_removed": true,
+    "offline_h1_visible": true,
+    "offline_main_count": 1,
+    "offline_status": "Offline — saved pages remain readable, but submissions need a connection."
+  },
+  "privacy_and_terms": {
+    "each_has_one_h1_and_main": true,
+    "default_axe_serious_or_critical": 0
+  },
+  "deterministic_workspace_cleanup_status": 204
+}

@@ -1,0 +1,14 @@
+{
+  "url": "https://rubric-revision-loop.sociobot.in",
+  "loadMs": 678,
+  "errors": [],
+  "a11y": {
+    "title": "Rubric Revision Loop",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 559
+  }
+}

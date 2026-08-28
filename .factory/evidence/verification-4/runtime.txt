@@ -1,0 +1,44 @@
+Candidate: f02906400387d14e6866a55ef890b74a198ea846
+Live URL: https://rubric-revision-loop.sociobot.in
+
+Local release health:
+HTTP 200
+{"status":"ok","build_sha":"f02906400387d14e6866a55ef890b74a198ea846"}
+
+Live release health:
+HTTP/2 200
+cache-control: no-store
+strict-transport-security: max-age=31536000
+{"status":"ok","build_sha":"f02906400387d14e6866a55ef890b74a198ea846"}
+
+Candidate/live SHA-256:
+bb2fec39d73f41096d4f4fe4c027eb65cf3f7c5b0f8bd50e53356d8295f6880d  index.html
+4f7c7dc5a019abe21b352b2cb39adc7897f8e5a2b66f3875d084349872645dfc  assets/index-C3jd5Oym.js
+3fa573e0d8b167add8e917ff17db9bf53b7c708229b4e99a28fed7b194a50c71  assets/index-DQuZd63g.css
+7fcf0398e0b91718f18e6bf614e7dc3d48f5b848574ab756f520b67e74f5fc52  sw.js
+05c4da3f8da546837a7e345af05f32f937925ce0a4441856697ec1b7c9d4cd90  assets/revision-loop-hero-720.05c4da3f8da5.webp
+
+Response policy:
+HTML and sw.js: cache-control: no-cache
+Hashed JS/CSS: cache-control: public, max-age=31536000, immutable
+API: cache-control: no-store
+CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, HSTS, and X-Request-Id present.
+Cross-origin API preflight: HTTP 405 with no Access-Control-Allow-Origin.
+HTTP origin: 301 to HTTPS.
+
+Billing checkout:
+GET https://api.sociobot.in/api/v1/products/rubric-revision-loop/checkout
+HTTP/2 303
+Location: https://checkout.dodopayments.com/session/<redacted>
+
+Concurrency:
+100 live /api/health requests at concurrency 20: 100 HTTP 200
+Mean response time: 0.7954 s
+Maximum response time: 1.6667 s
+All 100 build_sha values matched the candidate.
+
+Write limiting:
+Fresh client/workspace requests 1-60: reached request validation (HTTP 422)
+Request 61: HTTP 429
+Retry-After: 60
+{"error":"Too many changes were requested. Wait a minute and try again."}

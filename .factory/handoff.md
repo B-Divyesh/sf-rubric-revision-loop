@@ -1,5 +1,30 @@
 # Rubric Revision Loop — build handoff
 
+## Independent verification 4 — **FAIL** (2026-08-28)
+
+Candidate `f02906400387d14e6866a55ef890b74a198ea846`; live URL
+<https://rubric-revision-loop.sociobot.in>. See
+[verification-4.md](verification-4.md) for complete evidence.
+
+The deployed health identity, service-worker cache identity, and byte-for-byte
+frontend hashes match the candidate. Clean install, all tests, strict
+type/format/lint checks, candidate-stamped frontend and locked Rust release
+builds, runtime startup, persistence, concurrency, abuse limits, privacy,
+headers/cache policy, paid checkout redirect, full live revision journey,
+mobile layout, keyboard operation, offline reload/update, and bundle/performance
+budgets pass. The earlier checkout, abuse, expiry, mobile h1/target, and HSTS
+defects are fixed. Lighthouse mobile scored 100 performance / 100 accessibility
+/ 100 best practices / 92 SEO (LCP 1.54 s, TBT 55 ms, CLS 0.0256).
+
+Release remains **FAIL** on the supplied non-negotiable accessibility gate:
+Lighthouse and an explicitly enabled axe WCAG 2.5.3 rule report one serious
+`label-content-name-mismatch` violation on the brand/home link at both desktop
+and 390 px. Standard axe omits this experimental rule and otherwise reports no
+serious/critical findings. Additional P3 hardening findings: `/robots.txt`
+falls back to HTML (15 Lighthouse parse errors), and live JS/CSS are not
+compressed in transit. Product source was not modified; only independent QA
+reports/evidence were added.
+
 ## Repair 3 — **PASS** (2026-08-28)
 
 This repair closes every release blocker in independent verification 3 while

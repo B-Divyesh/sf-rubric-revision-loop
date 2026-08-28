@@ -1,5 +1,32 @@
 # Rubric Revision Loop — build handoff
 
+## Independent verification 3 — **FAIL** (2026-08-28)
+
+Candidate `4ab9efc79742118bd8eb59c4627def63d2342e7d`; live URL
+<https://rubric-revision-loop.sociobot.in>. This fresh independent verdict
+supersedes the builder's Repair 2 PASS below. See
+[verification-3.md](verification-3.md) for the complete acceptance evidence.
+
+The previous deployment-only failure is resolved: live `/api/health`, `sw.js`,
+and byte-for-byte frontend artifact hashes match the candidate, and unlicensed
+365-day retention/team-pack writes now return `403`. The free teacher → student
+→ review loop passes locally and live, as do tests, lint/type/format checks,
+candidate-stamped production builds, persistence/restart, 100-request
+concurrency, axe, keyboard/focus, reduced motion, offline update/reload,
+privacy/outbound checks, caching, bundle budgets, and Lighthouse mobile
+(97 performance / 100 accessibility / 100 best practices / 92 SEO; LCP 1.5 s,
+TBT 200 ms, CLS 0.022).
+
+Release remains **FAIL** because the rendered production “Buy Studio — $24
+once” link returns HTTP `404`, so the paid unlock cannot be purchased. The
+public write API also has no rate limiter or storage quota, allowing arbitrary
+anonymous writes against the shared SQLite volume. Additional P2 defects:
+expired links leave student writing indefinitely in the teacher queue/export;
+at 390 px the sole DOM h1 is hidden and absent from the accessibility tree; and
+the 42 px brand plus 20 px legal links miss the required 44 px targets. HSTS is
+also absent (P3). Product source was not modified; only this report and handoff
+were written.
+
 ## Repair 2 — **PASS** (2026-08-28)
 
 This repair closes both release blockers from independent verification 2 while

@@ -42,8 +42,19 @@ Repair verification completed locally:
   assets, and service-worker `no-cache`. A local release binary compiled with
   `BUILD_SHA=build-identity-test` returned that exact value from `/api/health`.
 
-Container deployment and live URL verification are recorded after the repair
-image is built and promoted.
+Deployment evidence:
+
+- Image: `sociobotregistry.azurecr.io/sf-rubric-revision-loop:a25cc9685c9e`
+  (ACR build `ch88`, succeeded 2026-08-28).
+- Container App revision served the repair commit; live
+  `https://rubric-revision-loop.sociobot.in/api/health` returned
+  `{"status":"ok","build_sha":"a25cc9685c9ef140a3a8b4b877c4898a58caff45"}`.
+- Live `verify-url.sh`: HTTP 200 in 658 ms, zero console errors, title/lang/
+  one h1/main/alt/button-label checks pass at desktop and 390 px.
+- Live headers: hashed JavaScript is immutable for one year; `sw.js` is
+  `no-cache`; `/api/health` is `no-store`; CSP, nosniff, DENY framing,
+  Referrer-Policy, and request IDs are present. Live `sw.js` contains
+  `rrl-shell-a25cc9685c9ef140a3a8b4b877c4898a58caff45`.
 
 ## Independent verifier verdict — **FAIL** (2026-08-27)
 

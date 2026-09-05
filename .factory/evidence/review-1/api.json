@@ -1,0 +1,368 @@
+{
+  "checked_at": "2026-09-05T19:29:36.950Z",
+  "normal": {
+    "rubric1": {
+      "status": 201,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "id": 7,
+        "code": "CL-1",
+        "title": "Clarify the claim",
+        "guidance": "The paragraph names a topic but does not state a claim a reader can test.",
+        "next_step": "Rewrite the first sentence as one specific, debatable claim.",
+        "created_at": "2026-09-05 19:29:37"
+      }
+    },
+    "rubric2": {
+      "status": 201,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "id": 8,
+        "code": "EV-2",
+        "title": "Connect the evidence",
+        "guidance": "The quotation appears without an explanation of how it supports the claim.",
+        "next_step": "Add one sentence that connects a detail in the quotation to the claim.",
+        "created_at": "2026-09-05 19:29:37"
+      }
+    },
+    "loop": {
+      "status": 201,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "id": 5,
+        "token": "[deleted synthetic token]",
+        "status": "awaiting",
+        "created_at": "2026-09-05 19:29:37"
+      }
+    },
+    "completeSubmission": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "submitted"
+      }
+    },
+    "review": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "reviewed"
+      }
+    },
+    "export": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "exported_at": "2026-09-05 19:29:37",
+        "rubrics": [
+          {
+            "id": 7,
+            "code": "CL-1",
+            "title": "Clarify the claim",
+            "guidance": "The paragraph names a topic but does not state a claim a reader can test.",
+            "next_step": "Rewrite the first sentence as one specific, debatable claim.",
+            "created_at": "2026-09-05 19:29:37"
+          },
+          {
+            "id": 8,
+            "code": "EV-2",
+            "title": "Connect the evidence",
+            "guidance": "The quotation appears without an explanation of how it supports the claim.",
+            "next_step": "Add one sentence that connects a detail in the quotation to the claim.",
+            "created_at": "2026-09-05 19:29:37"
+          }
+        ],
+        "feedback_loops": [
+          {
+            "id": 5,
+            "token": "[deleted synthetic token]",
+            "student_label": "Section 4 · Writer 7",
+            "assignment_title": "Clean energy argument",
+            "teacher_note": "Revise the opening paragraph only.",
+            "status": "submitted",
+            "before_excerpt": "Renewable energy is useful.",
+            "after_excerpt": "Renewable power lowers fuel costs for towns because sunlight and wind do not require purchased fuel.",
+            "explanation": "I revised again after the teacher reopened this work.",
+            "checklist": [
+              7,
+              8
+            ],
+            "retention_days": 30,
+            "created_at": "2026-09-05 19:29:37",
+            "submitted_at": "2026-09-05 19:29:37",
+            "reviewed_at": null,
+            "rubrics": [
+              {
+                "id": 7,
+                "code": "CL-1",
+                "title": "Clarify the claim",
+                "guidance": "The paragraph names a topic but does not state a claim a reader can test.",
+                "next_step": "Rewrite the first sentence as one specific, debatable claim.",
+                "created_at": "2026-09-05 19:29:37"
+              },
+              {
+                "id": 8,
+                "code": "EV-2",
+                "title": "Connect the evidence",
+                "guidance": "The quotation appears without an explanation of how it supports the claim.",
+                "next_step": "Add one sentence that connects a detail in the quotation to the claim.",
+                "created_at": "2026-09-05 19:29:37"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "invalid": {
+    "workspace": {
+      "status": 401,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "This browser does not have a valid workspace key."
+      }
+    },
+    "malformedRubric": {
+      "status": 422,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "Code must be at least 2 characters."
+      }
+    },
+    "duplicateRubric": {
+      "status": 409,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "That rubric code already exists in this workspace."
+      }
+    },
+    "retentionSix": {
+      "status": 422,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "Retention must be between 7 and 365 days."
+      }
+    },
+    "unlicensedYear": {
+      "status": 403,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "A valid Studio license is required for this feature."
+      }
+    },
+    "thirteenCriteria": {
+      "status": 422,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "Choose between 1 and 12 rubric codes."
+      }
+    },
+    "incompleteChecklist": {
+      "status": 422,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "Check each rubric step before submitting."
+      }
+    },
+    "reviewedResubmit": {
+      "status": 409,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "This revision has already been reviewed. Ask your teacher to reopen it."
+      }
+    },
+    "deleteLinkedRubric": {
+      "status": 409,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "This code is used in a feedback link. Delete that link first."
+      }
+    },
+    "largeBody": {
+      "status": 413,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "text/plain; charset=utf-8",
+      "body": "Failed to buffer the request body: length limit exceeded"
+    }
+  },
+  "isolation": {
+    "listFromOtherWorkspace": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "items": []
+      }
+    },
+    "deleteFromOtherWorkspace": {
+      "status": 404,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "Rubric code not found."
+      }
+    },
+    "studentView": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "assignment_title": "Clean energy argument",
+        "teacher_note": "Revise the opening paragraph only.",
+        "status": "submitted",
+        "before_excerpt": "Renewable energy is useful.",
+        "after_excerpt": "Renewable power lowers fuel costs for towns because sunlight and wind do not require purchased fuel.",
+        "explanation": "I added a specific claim and connected the cost evidence to it.",
+        "checklist": [
+          7,
+          8
+        ],
+        "rubrics": [
+          {
+            "id": 7,
+            "code": "CL-1",
+            "title": "Clarify the claim",
+            "guidance": "The paragraph names a topic but does not state a claim a reader can test.",
+            "next_step": "Rewrite the first sentence as one specific, debatable claim.",
+            "created_at": "2026-09-05 19:29:37"
+          },
+          {
+            "id": 8,
+            "code": "EV-2",
+            "title": "Connect the evidence",
+            "guidance": "The quotation appears without an explanation of how it supports the claim.",
+            "next_step": "Add one sentence that connects a detail in the quotation to the claim.",
+            "created_at": "2026-09-05 19:29:37"
+          }
+        ],
+        "expires_at": "2026-10-05 19:29:37"
+      }
+    }
+  },
+  "recovery": {
+    "reopen": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "submitted"
+      }
+    },
+    "resubmit": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "submitted"
+      }
+    },
+    "deleteWorkspace": {
+      "status": 204,
+      "retryAfter": null,
+      "location": null,
+      "contentType": null,
+      "body": ""
+    },
+    "deletedStudentLink": {
+      "status": 404,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "error": "This revision link was not found or has been deleted."
+      }
+    }
+  },
+  "limits": {
+    "readBurst": {
+      "counts": {
+        "200": 75
+      },
+      "retryAfterValues": [
+        null
+      ]
+    },
+    "writeBurst": {
+      "counts": {
+        "404": 42,
+        "429": 19
+      },
+      "last": {
+        "status": 429,
+        "retryAfter": "60",
+        "location": null,
+        "contentType": "application/json",
+        "body": {
+          "error": "Too many changes were requested. Wait a minute and try again."
+        }
+      }
+    }
+  },
+  "health": {
+    "api": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "ok",
+        "build_sha": "f02906400387d14e6866a55ef890b74a198ea846"
+      }
+    },
+    "root": {
+      "status": 200,
+      "retryAfter": null,
+      "location": null,
+      "contentType": "application/json",
+      "body": {
+        "status": "ok",
+        "build_sha": "f02906400387d14e6866a55ef890b74a198ea846"
+      }
+    },
+    "burst": {
+      "200": 100
+    }
+  },
+  "billing": {
+    "checkout": {
+      "status": 303,
+      "location": "https://checkout.dodopayments.com/session/[redacted]"
+    }
+  }
+}

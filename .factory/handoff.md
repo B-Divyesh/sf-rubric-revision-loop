@@ -1,5 +1,30 @@
 # Rubric Revision Loop — build handoff
 
+## Independent review 1 — **FAIL** (2026-09-05)
+
+Implementation `f02906400387d14e6866a55ef890b74a198ea846` remains live;
+documentation HEAD before this report was
+`c38fccec5fe4ebb96ee9e895ddc9ff88e3305204`. See
+[review-1.md](review-1.md) and `.factory/evidence/review-1/`.
+
+The current core workflow passes with realistic live data: two rubric codes,
+student checklist and before/after evidence, teacher review, export, isolation,
+and permanent workspace deletion. Clean install, audit, tests, lint, frontend
+build, locked Rust release build, process restart persistence, invalid and
+recovery paths, keyboard, mobile, 200% text, reduced motion, offline reload,
+health, HSTS, checkout redirect, and performance budgets also pass. Lighthouse
+mobile scored 100 performance / 100 accessibility / 100 best practices / 92
+SEO. Both synthetic live workspaces were deleted.
+
+The product verdict is **FAIL with 10 findings and 14 untested public claims**.
+There is no isolated one-click sample, `.factory/demo.md`, claims manifest, or
+tagged claim test. `/demo` reuses the real workspace namespace. SQLite is
+written under `/app/data` instead of the fleet `/data` mount. Read endpoints
+are unlimited and the write limiter reads the wrong forwarded-address hop.
+The serious WCAG 2.5.3 brand-name mismatch remains. The first screen, route
+titles, metadata, 404, robots, sitemap, container base, startup reporting, and
+text compression also miss their contracts. Product code was not changed.
+
 ## Independent verification 4 — **FAIL** (2026-08-28)
 
 Candidate `f02906400387d14e6866a55ef890b74a198ea846`; live URL

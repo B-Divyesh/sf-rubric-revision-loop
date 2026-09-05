@@ -1,0 +1,99 @@
+{
+  "order": [
+    {
+      "tag": "A",
+      "text": "Skip to main content"
+    },
+    {
+      "tag": "A",
+      "text": "R↻ Rubric Revision Loop"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "↗ Create feedback"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "▤ Rubric library 0"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "≡ Review queue"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "⚙ Workspace"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create your first code"
+    },
+    {
+      "tag": "A",
+      "text": "Privacy"
+    },
+    {
+      "tag": "A",
+      "text": "Terms"
+    },
+    {
+      "tag": "BODY",
+      "text": "Skip to main content R↻ Rubric Revision Loop ● Private workspace Teacher deskMake the next revision visible. ↗ Create feedback ▤ Rubric library 0 ≡ Review queue ⚙ Workspace ✎Your judgment stays central.No generated feedback. No automated grades. New feedback loopTurn a rubric reason into a revisionChoose reusable codes, add only the context this student needs, then share one focused link.0 ready to review Start with one reason you repeatYour rubric library is emptyCreate a short code for feedback you give often. Students will see both your explanation and the concrete next step.Create your first code PrivacyTermsOriginal paper illustration generated for this product."
+    },
+    {
+      "tag": "A",
+      "text": "Skip to main content"
+    },
+    {
+      "tag": "A",
+      "text": "R↻ Rubric Revision Loop"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "↗ Create feedback"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "▤ Rubric library 0"
+    }
+  ],
+  "spaceActivated": true,
+  "resized": {
+    "clientWidth": 390,
+    "scrollWidth": 390,
+    "h1Visible": true,
+    "mainVisible": true,
+    "buttons": [
+      {
+        "text": "↗ Create feedback",
+        "width": 181,
+        "height": 103.3125
+      },
+      {
+        "text": "▤ Rubric library 0",
+        "width": 181,
+        "height": 103.3125
+      },
+      {
+        "text": "≡ Review queue",
+        "width": 181,
+        "height": 103.3125
+      },
+      {
+        "text": "⚙ Workspace",
+        "width": 181,
+        "height": 103.3125
+      },
+      {
+        "text": "Add rubric code",
+        "width": 180.8125,
+        "height": 46.796875
+      },
+      {
+        "text": "Fill an example",
+        "width": 175.140625,
+        "height": 46.796875
+      }
+    ]
+  }
+}

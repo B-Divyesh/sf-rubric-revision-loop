@@ -1,0 +1,349 @@
+{
+  "base": "https://rubric-revision-loop.sociobot.in",
+  "checked_at": "2026-09-05T19:27:55.213Z",
+  "desktop": {
+    "title": "Rubric Revision Loop",
+    "lang": "en",
+    "h1": [
+      "Make the next revision visible."
+    ],
+    "mainCount": 1,
+    "visibleBeforeScroll": [
+      "R↻ Rubric Revision Loop",
+      "Teacher desk",
+      "Make the next revision visible.",
+      "↗ Create feedback",
+      "▤ Rubric library 0",
+      "≡ Review queue",
+      "⚙ Workspace",
+      "Your judgment stays central.No generated feedback. No automated grades.",
+      "New feedback loop",
+      "Turn a rubric reason into a revision",
+      "Choose reusable codes, add only the context this student needs, then share one focused link.",
+      "Start with one reason you repeat",
+      "Your rubric library is empty",
+      "Create a short code for feedback you give often. Students will see both your explanation and the concrete next step.",
+      "Create your first code",
+      "Privacy",
+      "Terms"
+    ],
+    "sampleActions": [],
+    "canonical": null,
+    "ogTitle": null,
+    "footer": "PrivacyTermsOriginal paper illustration generated for this product.",
+    "width": {
+      "inner": 1440,
+      "scroll": 1440
+    },
+    "axe": [
+      {
+        "id": "label-content-name-mismatch",
+        "impact": "serious",
+        "help": "Elements must have their visible text as part of their accessible name",
+        "targets": [
+          [
+            ".brand"
+          ]
+        ]
+      }
+    ],
+    "keyboard": {
+      "firstFocus": {
+        "text": "Skip to main content",
+        "outline": "rgb(12, 91, 136) solid 3px"
+      },
+      "afterSkip": {
+        "id": "main",
+        "tag": "MAIN"
+      }
+    },
+    "errors": [],
+    "origins": [
+      "https://rubric-revision-loop.sociobot.in"
+    ]
+  },
+  "mobile": {
+    "title": "Rubric Revision Loop",
+    "lang": "en",
+    "h1": [
+      "Make the next revision visible."
+    ],
+    "mainCount": 1,
+    "visibleBeforeScroll": [
+      "R↻ Rubric Revision Loop",
+      "Make the next revision visible.",
+      "↗ Create feedback",
+      "▤ Rubric library 0",
+      "≡ Review queue",
+      "⚙ Workspace",
+      "New feedback loop",
+      "Turn a rubric reason into a revision",
+      "Choose reusable codes, add only the context this student needs, then share one focused link.",
+      "Start with one reason you repeat",
+      "Your rubric library is empty"
+    ],
+    "sampleActions": [],
+    "canonical": null,
+    "ogTitle": null,
+    "footer": "PrivacyTermsOriginal paper illustration generated for this product.",
+    "width": {
+      "inner": 390,
+      "scroll": 390
+    },
+    "axe": [
+      {
+        "id": "label-content-name-mismatch",
+        "impact": "serious",
+        "help": "Elements must have their visible text as part of their accessible name",
+        "targets": [
+          [
+            ".brand"
+          ]
+        ]
+      }
+    ],
+    "motion": [
+      {
+        "text": "Skip to main content",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "R↻ Rubric Revision Loop",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "↗ Create feedback",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "▤ Rubric library 0",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "≡ Review queue",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "⚙ Workspace",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "Create your first code",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      {
+        "text": "Privacy",
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      }
+    ],
+    "targets": [
+      {
+        "text": "Skip to main content",
+        "width": 194.578125,
+        "height": 44.796875
+      },
+      {
+        "text": "R↻ Rubric Revision Loop",
+        "width": 194.625,
+        "height": 44
+      },
+      {
+        "text": "↗ Create feedback",
+        "width": 181,
+        "height": 44.34375
+      },
+      {
+        "text": "▤ Rubric library 0",
+        "width": 181,
+        "height": 44.34375
+      },
+      {
+        "text": "≡ Review queue",
+        "width": 181,
+        "height": 44
+      },
+      {
+        "text": "⚙ Workspace",
+        "width": 181,
+        "height": 44
+      },
+      {
+        "text": "Create your first code",
+        "width": 234.90625,
+        "height": 46.796875
+      },
+      {
+        "text": "Privacy",
+        "width": 47.46875,
+        "height": 44
+      },
+      {
+        "text": "Terms",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "errors": []
+  },
+  "demo": {
+    "title": "Rubric Revision Loop",
+    "lang": "en",
+    "h1": [
+      "Make the next revision visible."
+    ],
+    "mainCount": 1,
+    "visibleBeforeScroll": [
+      "R↻ Rubric Revision Loop",
+      "Teacher desk",
+      "Make the next revision visible.",
+      "↗ Create feedback",
+      "▤ Rubric library 0",
+      "≡ Review queue",
+      "⚙ Workspace",
+      "Your judgment stays central.No generated feedback. No automated grades.",
+      "New feedback loop",
+      "Turn a rubric reason into a revision",
+      "Choose reusable codes, add only the context this student needs, then share one focused link.",
+      "Start with one reason you repeat",
+      "Your rubric library is empty",
+      "Create a short code for feedback you give often. Students will see both your explanation and the concrete next step.",
+      "Create your first code",
+      "Privacy",
+      "Terms"
+    ],
+    "sampleActions": [],
+    "canonical": null,
+    "ogTitle": null,
+    "footer": "PrivacyTermsOriginal paper illustration generated for this product.",
+    "width": {
+      "inner": 1280,
+      "scroll": 1280
+    },
+    "demoKeyCreated": true,
+    "sameNamespaceAsHome": true,
+    "resetAction": 0,
+    "startForRealAction": 0,
+    "persistentSampleLabel": 0
+  },
+  "routes": {
+    "/privacy": {
+      "status": 200,
+      "contentType": "text/html",
+      "title": "Rubric Revision Loop",
+      "h1": [
+        "Privacy"
+      ],
+      "text": "PLAIN-LANGUAGE POLICY\n\nPrivacy\n\nRubric Revision Loop is designed to work without accounts, ads, analytics, or student email addresses.\n\nWhat is stored\n\nThe service stores rubric guidance, assignment labels, optional student labels, feedback notes, before-and-after excerpts, revision explanations, and review status. A random workspace key in the teacher’s browser controls teacher access. Student links use separate random tokens.\n\nHow it is used\n\nData is used only to provide the revision workflow.",
+      "axe": [
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "help": "Elements must have their visible text as part of their accessible name",
+          "targets": [
+            [
+              ".brand"
+            ]
+          ]
+        }
+      ]
+    },
+    "/terms": {
+      "status": 200,
+      "contentType": "text/html",
+      "title": "Rubric Revision Loop",
+      "h1": [
+        "Terms"
+      ],
+      "text": "PLAIN-LANGUAGE POLICY\n\nTerms\n\nUse Rubric Revision Loop to support human-led writing feedback. It does not grade, detect plagiarism, or generate student writing.\n\nTeacher responsibility\n\nYou are responsible for rubric content, review decisions, obtaining any required school consent, and avoiding unnecessary personal data. Do not use the service for emergency, medical, or high-stakes decisions.\n\nAvailability and acceptable use\n\nThe service is provided as available. Do not probe, overload, or use i",
+      "axe": [
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "help": "Elements must have their visible text as part of their accessible name",
+          "targets": [
+            [
+              ".brand"
+            ]
+          ]
+        }
+      ]
+    },
+    "/does-not-exist-review-1": {
+      "status": 200,
+      "contentType": "text/html",
+      "title": "Rubric Revision Loop",
+      "h1": [
+        "Make the next revision visible."
+      ],
+      "text": "NEW FEEDBACK LOOP\n\nTurn a rubric reason into a revision\n\nChoose reusable codes, add only the context this student needs, then share one focused link.\n\n0\nREADY TO REVIEW\n\nSTART WITH ONE REASON YOU REPEAT\n\nYour rubric library is empty\n\nCreate a short code for feedback you give often. Students will see both your explanation and the concrete next step.\n\nCreate your first code",
+      "axe": [
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "help": "Elements must have their visible text as part of their accessible name",
+          "targets": [
+            [
+              ".brand"
+            ]
+          ]
+        }
+      ]
+    },
+    "/r/not-a-real-token": {
+      "status": 200,
+      "contentType": "text/html",
+      "title": "Rubric Revision Loop",
+      "h1": [
+        "We couldn’t open this revision."
+      ],
+      "text": "LINK UNAVAILABLE\n\nWe couldn’t open this revision.\n\nThis revision link is not valid.\n\nTry again",
+      "axe": [
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "help": "Elements must have their visible text as part of their accessible name",
+          "targets": [
+            [
+              ".brand"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "journey": {
+    "invalidForm": {
+      "focused": true,
+      "message": "Please match the requested format."
+    },
+    "studentResponseHasStudentLabel": false,
+    "queue": "READY TO REVIEW\nClass 8B · Writer 14\nCommunity garden argument\nSep 5, 2026, 7:28 PM\nEV-1\nORG-2\nBefore\nThe garden is good because it helps the neighborhood. People can use it.\nAfter\nA community garden gives neighbors fresh produce first. It also creates a shared place to work, so residents meet while caring for the same space.\nStudent’s explanation\n\nI put the specific food benefit first and added a transition that connects it to the community benefit.\n\nCopy link\nMark reviewed\nDelete link",
+    "export": {
+      "rubrics": 2,
+      "filename": "revision-loop-export.json"
+    },
+    "reviewed": true,
+    "studentReadOnly": true,
+    "outboundOrigins": [
+      "https://rubric-revision-loop.sociobot.in"
+    ],
+    "errors": [],
+    "cleanupStatus": 204
+  },
+  "offline": {
+    "controlled": true,
+    "cachesBefore": [
+      "rrl-shell-f02906400387d14e6866a55ef890b74a198ea846"
+    ],
+    "h1": "Make the next revision visible.",
+    "status": "Offline — saved pages remain readable, but submissions need a connection."
+  }
+}
